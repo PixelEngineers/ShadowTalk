@@ -26,25 +26,33 @@ class FileDatabase(DatabaseInterop):
   groups: list[Group]
   messages: dict[str, list[Message]]
 
-  def __init__(self):
-    create_if_not_exist('users.dat', pickle.dumps([]), 'wb')
-    create_if_not_exist('groups.dat', pickle.dumps([]), 'wb')
-    create_if_not_exist('messages.dat', pickle.dumps({}), 'wb')
+  user_db_location: str
+  group_db_location: str
+  messages_db_location: str
 
-    with open('users.dat', 'rb') as f:
+  def __init__(self, user_db_location: str, group_db_location: str, messages_db_location: str):
+    create_if_not_exist(user_db_location, pickle.dumps([]), 'wb')
+    create_if_not_exist(group_db_location, pickle.dumps([]), 'wb')
+    create_if_not_exist(messages_db_location, pickle.dumps({}), 'wb')
+
+    with open(user_db_location, 'rb') as f:
       self.users = pickle.load(f)
-    with open('groups.dat', 'rb') as f:
+    with open(group_db_location, 'rb') as f:
       self.groups = pickle.load(f)
-    with open('messages.dat', 'rb') as f:
+    with open(messages_db_location, 'rb') as f:
       self.messages = pickle.load(f)
+
+    self.user_db_location = user_db_location
+    self.group_db_location = group_db_location
+    self.messages_db_location = messages_db_location
     super().__init__()
 
   def deinit(self):
-    with open('users.dat', 'wb') as f:
+    with open(self.user_db_location, 'wb') as f:
       pickle.dump(self.users, f)
-    with open('groups.dat', 'wb') as f:
+    with open(self.group_db_location, 'wb') as f:
       pickle.dump(self.groups, f)
-    with open('messages.dat', 'wb') as f:
+    with open(self.messages_db_location, 'wb') as f:
       pickle.dump(self.messages, f)
 
   def user_create(self, name: str, password: str) -> str:
