@@ -53,7 +53,7 @@ class Group:
     ]
 
   @staticmethod
-  def private(name: str, creator_ids: list[str]):
+  def private(name: str, creator_ids: list[str]) -> "Group":
     self = Group(name)
 
     self.is_public = False
