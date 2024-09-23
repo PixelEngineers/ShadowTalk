@@ -8,6 +8,8 @@ from .forms import RoomForm,UserForm
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
+from ..database import useDatabase as db
+
 # Create your views here.
 
 # rooms=[
@@ -27,6 +29,7 @@ def loginPage(request):
             user=User.objects.get(username=username)
         except:
             messages.error(request, 'User does not exist')
+
         user= authenticate(request,username=username,password=password)
         if user is not None:
             login(request,user)
