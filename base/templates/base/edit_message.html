@@ -1,0 +1,13 @@
+{% extends 'main.html'%}
+
+{% block content %}
+
+<form action="" method='POST'>
+    {% csrf_token %}
+    <p>edit "{{obj}}" to? </p>
+    <a href="{{request.META.HTTP_REFERER}}">Go Back</a>
+    <input type="text" name="editedmessage" placeholder= 'Enter new message'>
+</form>
+
+{% endblock %}
+

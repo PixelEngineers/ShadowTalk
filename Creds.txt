@@ -1,0 +1,13 @@
+superuser
+username: ojesh
+email: ojeshshri.208@gmail.com
+pass: Ojesh
+
+
+user1
+name:Dhruv
+pass: dhsrivastav@123
+
+user2
+name:Rohit
+pass: Ojesh@123

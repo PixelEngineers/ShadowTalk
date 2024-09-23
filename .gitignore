@@ -1,2 +1,4 @@
 .idea/
+.venv/
 **/*.dat
+**/__pycache__/
