@@ -9,7 +9,15 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
 from database.FileDatabase import FileDatabase
+from os.path import exists
+from os import mkdir
 
+def mkdir_if_not_exist(name: str):
+    if exists(name):
+        return
+    mkdir(name)
+
+mkdir_if_not_exist('file_db')
 useDatabase = FileDatabase(
     "file_db/users.dat",
     "file_db/groups.dat",
