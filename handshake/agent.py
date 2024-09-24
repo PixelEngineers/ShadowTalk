@@ -1,10 +1,10 @@
 from typing import Optional
 
+from handshake import PUBLIC, PublicKey, create_keypair, PRIVATE
 from handshake.keyservice import KeyService
 from handshake.keybundles import UserKeyBundle, PublicKeyBundle, InitialMessageBundle
 from notation_functions import dh, kdf
 from nacl.secret import Aead
-from . import PUBLIC, PublicKey, create_keypair, PRIVATE
 import pickle
 
 agent_data_location = "../file_db/agent_data"

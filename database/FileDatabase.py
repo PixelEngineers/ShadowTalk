@@ -1,12 +1,12 @@
-from database import DatabaseInterop
 from os.path import exists
 from typing import Optional, Any, TypeVar, Callable
 from bcrypt import hashpw, gensalt
 import pickle
 
-from .user import User
-from .group import Group
-from .message import Message
+from database.Interop import DatabaseInterop
+from database.user import User
+from database.group import Group
+from database.message import Message
 
 T = TypeVar("T")
 def find_index(to_iter: list[T], expression: Callable[[T], bool]) -> Optional[int]:
