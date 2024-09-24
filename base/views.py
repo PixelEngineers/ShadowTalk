@@ -8,7 +8,13 @@ from .forms import RoomForm,UserForm
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
-from database import useDatabase
+from database.FileDatabase import FileDatabase
+
+useDatabase = FileDatabase(
+    "file_db/users.dat",
+    "file_db/groups.dat",
+    "file_db/messages.dat",
+)
 
 # Create your views here.
 
