@@ -8,7 +8,6 @@ from .forms import RoomForm,UserForm
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
-from ..database import useDatabase as db
 
 # Create your views here.
 
@@ -40,9 +39,12 @@ def loginPage(request):
     context={'page':page}
     return render(request, 'base/login_register.html',context)
 
+
+@login_required(login_url='/login')
 def logoutUser(request):
     logout(request)
     return redirect('home')
+
 
 def registerPage(request):
     page='register'
@@ -59,6 +61,7 @@ def registerPage(request):
             messages.error(request,'An error occured during registration')
     return render(request,'base/login_register.html',{'form':form})
 
+@login_required(login_url='/login')
 def home(request):
     q=request.GET.get('q') if request.GET.get('q') != None else ''
      
@@ -77,6 +80,7 @@ def home(request):
     context={'rooms':rooms,'topics':topics,'room_count':room_count,'room_messages':room_messages}
     return render(request,'base/home.html',context)
 
+@login_required(login_url='/login')
 def room(request,pk):
     room=Room.objects.get(id=pk)
     room_messages=room.message_set.all().order_by('created') #all the set of messages in that room
@@ -196,3 +200,8 @@ def updateUser(request):
             return redirect('user-profile',pk=user.id)
 
     return render(request,'base/update-user.html',{'form':form})
+
+
+
+def land(request):
+    return render(request,'base/landing_page.html')

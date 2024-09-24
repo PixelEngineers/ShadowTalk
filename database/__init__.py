@@ -52,9 +52,3 @@ class DatabaseInterop:
   def request_send(self, from_id: str, to_id: str) -> bool: pass
   def request_exists(self, from_id: str, to_id: str) -> bool: pass
   def request_cancel(self, from_id: str, to_id: str) -> bool: pass
-
-useDatabase: DatabaseInterop = FileDatabase(
-  "file_db/users.dat",
-  "file_db/group.dat",
-  "file_db/messages.dat"
-)

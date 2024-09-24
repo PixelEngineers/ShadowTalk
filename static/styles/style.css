@@ -131,6 +131,22 @@ a {
   cursor: pointer;
 }
 
+.btn--login {
+  background-color: var(--color-main);
+  color: var(--color-dark);
+  padding: 0.6rem 1.2rem; /* Reduced padding */
+  border-radius: 5px;
+  text-decoration: none;
+  font-weight: bold;
+  font-size: 1.2rem; /* Reduced font size */
+  transition: background-color 0.3s ease, transform 0.3s ease;
+}
+
+.btn--login:hover {
+  background-color: var(--color-main-light);
+  transform: translateY(-2px);
+}
+
 .avatar {
   position: relative;
   display: inline-block;

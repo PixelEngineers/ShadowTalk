@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shadow Talk</title>
+    <link rel="stylesheet" href="/static/styles/landing.css">
+</head>
+<body>
+    <div id="particles-js"></div>
+    
+    <nav class="navbar">
+        <div class="navbar__container"> 
+            <div class="logo">
+                <img src="/static/images/shadowtalk_logo.svg" alt="Shadow Talk Logo">
+            </div>   
+            <ul class="navbar__menu">
+                <li class="dropdown">
+                    <a href="#" class="nav-item">Features</a>
+                    <ul class="dropdown-menu">
+                        <li><a href="#">Lorem</a></li>
+                        <li><a href="#">Ipsum 2</a></li>
+                        <li><a href="#">Solo 3</a></li>
+                    </ul>
+                </li>
+                <li><a href="#" class="nav-item">Privacy</a></li>
+                <li><a href="{% url 'login' %}" class="nav-item">Web View</a></li>
+                <li><a href="#" class="btn--download">Download</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <main class="content">
+        <div class="logo">
+            <img src="/static/images/shadowtalk_logo.svg" alt="Shadow Talk Logo">
+        </div>
+        <h1 class="title">Shadow Talk</h1>
+        <div class="features">
+            <div class="feature">
+                <h2>Feature 1</h2>
+                <p>Description of feature 1</p>
+            </div>
+            <div class="feature">
+                <h2>Feature 2</h2>
+                <p>Description of feature 2</p>
+            </div>
+            <div class="feature">
+                <h2>Feature 3</h2>
+                <p>Description of feature 3</p>
+            </div>
+        </div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
+    <script>
+        particlesJS.load('particles-js', '/static/json/particles.json', function() {
+            console.log('particles.js loaded');
+        });
+    </script>
+</body>
+</html>
