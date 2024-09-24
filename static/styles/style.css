@@ -67,6 +67,8 @@ a {
   max-width: 120rem;
   width: 90%;
   margin: auto;
+  display: flex;
+  align-items: center;
 }
 
 .btn {
@@ -133,12 +135,12 @@ a {
 
 .btn--login {
   background-color: var(--color-main);
-  color: var(--color-dark);
+  color: var(--color-bg) !important;
   padding: 0.6rem 1.2rem; /* Reduced padding */
   border-radius: 5px;
   text-decoration: none;
   font-weight: bold;
-  font-size: 1.2rem; /* Reduced font size */
+  font-size: 1.5rem; /* Reduced font size */
   transition: background-color 0.3s ease, transform 0.3s ease;
 }
 
@@ -287,6 +289,7 @@ a {
 }
 
 .header > .container {
+  height: 5rem;
   display: flex;
   gap: 9.5rem;
 }

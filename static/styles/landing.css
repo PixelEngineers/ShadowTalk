@@ -34,6 +34,7 @@ body, html {
 
 .navbar {
     width: 100%;
+    height: 5rem;
     background-color: var(--color-dark);
     position: fixed;
     top: 0;
@@ -55,7 +56,7 @@ body, html {
 }
 
 .navbar .logo img {
-    width: 120px; /* Reduced logo size */
+    width: 80px; /* Reduced logo size */
     height: auto;
 }
 
@@ -171,6 +172,7 @@ body, html {
 .features {
   display: flex;
   justify-content: space-around;
+    gap: 4rem;
   width: 80%;
   max-width: 1200px;
   margin-top: 1.5rem;
