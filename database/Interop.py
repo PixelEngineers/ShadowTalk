@@ -1,7 +1,7 @@
 from typing import Optional, Any, TypeVar
 
 from database.group import Group
-from database.user import PublicUser
+from database.user import PublicUser, PrivateUser
 
 Cookie = TypeVar("Cookie")
 ID = TypeVar("ID")
@@ -13,7 +13,7 @@ class DatabaseInterop:
   """User Interaction"""
   """Functions which don't require authentication"""
   """dont show group information here, ig"""
-  def user_public_get(self, email: str) -> PublicUser: pass
+  def user_public_get(self, email: str) -> Optional[PublicUser]: pass
   def user_exists(self, email: str) -> bool: pass
   def user_authenticate(self, email: str, password: str) -> bool: pass
   def user_create(
@@ -28,19 +28,20 @@ class DatabaseInterop:
 
   """Functions which do require authentication (use cookie)"""
   def user_logout(self, cookie: Cookie): pass
-  def user_get(self, cookie: Cookie): pass
+  def user_get(self, cookie: Cookie) -> Optional[PrivateUser]: pass
   """User Edit actions"""
   def user_change_username(self, cookie: Cookie, new_user_name: str) -> bool: pass
   def user_change_email(self, cookie: Cookie, new_email: str) -> bool: pass
   def user_change_profile_picture(self, cookie: Cookie, new_profile_picture: str) -> bool: pass
 
   """User group interactions"""
-  def user_groups_get(self, search_query: str) -> list[Group]: pass
+  def user_groups_get(self, cookie: Cookie, search_query: str) -> list[Group]: pass
   def user_join_group(self, cookie: Cookie, group_id: str) -> bool: pass
   def user_leave_group(self, cookie: Cookie, group_id: str, wipe_messages: bool) -> bool: pass
   def user_pin_group(self, cookie: Cookie, group_id: str) -> bool: pass
   def user_unpin_group(self, cookie: Cookie, group_id: str) -> bool: pass
   def user_admin_promote_group(self, cookie: Cookie, group_id: str) -> bool: pass
+  def user_admin_demote_group(self, cookie: Cookie, group_id: str) -> bool: pass
   def user_wipe_all_messages(self, cookie: Cookie) -> bool: pass
   def user_wipe_all_group_messages(self, cookie: Cookie, group_id: str) -> bool: pass
   def user_wipe_all_left_group_messages(self, cookie: Cookie) -> bool: pass

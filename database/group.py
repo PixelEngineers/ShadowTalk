@@ -15,7 +15,11 @@ class Group:
   last_message_content: str
   last_message_author_name: str
 
-  def __init__(self, name):
+  def __init__(self): pass
+
+  @staticmethod
+  def generate(name):
+    self = Group()
     self.id = str(uuid4())
     self.name = name
     self.is_public = False
@@ -26,6 +30,31 @@ class Group:
     self.last_message_content = f"\"{name}\" Created"
     self.last_message_author_name = "system"
     pass
+
+
+  @staticmethod
+  def from_attr(
+    id: str,
+    name: str,
+    is_public: bool,
+    owner_id: Optional[str],
+    admin_ids: list[str],
+    member_ids: list[str],
+    last_message_id: str,
+    last_message_content: str,
+    last_message_author_name: str
+  ):
+    self = Group()
+    self.id = id
+    self.name = name
+    self.is_public = is_public
+    self.owner_id = owner_id
+    self.admin_ids = admin_ids
+    self.member_ids = member_ids
+    self.last_message_id = last_message_id
+    self.last_message_content = last_message_content
+    self.last_message_author_name = last_message_author_name
+
 
   def to_obj(self):
     return {
