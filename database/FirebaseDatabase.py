@@ -1,5 +1,5 @@
-import google.cloud.firestore
-from google.cloud.firestore_v1 import DocumentSnapshot
+import ssl
+from os import getenv
 
 from database.FileDatabase import DatabaseInterop
 from uuid import uuid4
@@ -7,13 +7,18 @@ from typing import Optional, Any, TypeVar
 from datetime import timedelta
 from firebase_config import config, message_path, USER_COLLECTION, GROUP_COLLECTION
 
-import scrypt
-import firebase_admin
+from scrypt import hash as firebase_hash
 from firebase_admin import auth, db, initialize_app, App
 from firebase_admin._auth_utils import UserNotFoundError
 from firebase_admin._user_mgt import ExportedUserRecord
 from firebase_admin.firestore import client
-from google.cloud.firestore import ArrayUnion, ArrayRemove, CollectionReference
+from google.cloud.firestore import ArrayUnion, ArrayRemove, CollectionReference, Client, DocumentSnapshot
+
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from jwt import encode
+from ssl import create_default_context
+from smtplib import SMTP_SSL
 
 from database.message import Message, MESSAGE_AUTHOR_ID
 from database.cookie import Cookie
@@ -37,7 +42,7 @@ ID = TypeVar("ID")
 Token = TypeVar("Token")
 class FirebaseDatabase(DatabaseInterop):
     firebase: App
-    firestore: google.cloud.firestore.Client
+    firestore: Client
     user_collection: CollectionReference
     group_collection: CollectionReference
 
@@ -49,19 +54,19 @@ class FirebaseDatabase(DatabaseInterop):
         super().__init__()
 
     # Done
-    def user_public_get(self, email: str) -> Optional[PublicUser]:
+    def user_public_get(self, user_id: str) -> Optional[PublicUser]:
         try:
-            user_data = auth.get_user_by_email(email)
+            user_data = auth.get_user(user_id)
         except:
             return None
         return PublicUser(user_data.display_name, user_data.photo_url)
 
     # Done
-    def user_exists(self, email: str) -> bool:
+    def user_exists(self, user_id: str) -> bool:
         try:
-            _ = auth.get_user_by_email(email)
+            _ = auth.get_user(user_id)
             return True
-        except UserNotFoundError:
+        except:
             return False
 
     # Done
@@ -74,7 +79,7 @@ class FirebaseDatabase(DatabaseInterop):
             if not user.email == email:
                 continue
             try:
-                if not scrypt.hash(password, user.password_salt) == user.password_hash:
+                if not firebase_hash(password, user.password_salt) == user.password_hash:
                     return None, False
                 return user, True
             except:
@@ -113,6 +118,39 @@ class FirebaseDatabase(DatabaseInterop):
             return None
 
     # Done
+    # NOTE: THIS FUNCTION TAKES ~4 SECONDS TO RUN
+    def user_verify(self, user_id: str) -> bool:
+        user_record = auth.get_user(user_id)
+        if user_record.email_verified:
+            return True
+
+        message = MIMEMultipart("alternative")
+        message["Subject"] = "ShadowTalk - User Email Verification Code"
+        message["From"] = getenv("EMAIL")
+        message["To"] = user_record.email
+        encoded = encode({'_id': user_record.uid}, getenv("EMAIL_TOKEN"), algorithm="HS256")
+        url = f"{getenv('DOMAIN')}/verify-email?token={encoded}"
+        body = f"""
+        <h1 style="text-align: center;">ShadowTalk User Email Verification</h1>
+        <br>
+        <h3 style="text-align: center;">
+            <div style="font-size: 2rem;">
+                Hello {user_record.display_name}!<br>
+                Please <a href="{url}" target="_blank">Click this link</a> to verify your account<br>
+                <div style="color: 'red';">Do not share this with anyone else</div>
+            </div>
+        </h3>
+        """
+        html = MIMEText(body, "html")
+        message.attach(html)
+
+        context = create_default_context()
+        with SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
+            server.login(getenv("EMAIL"), getenv("EMAIL_PASS"))
+            server.sendmail(getenv("EMAIL"), user_record.email, message.as_string())
+
+
+    # Done
     def user_login(self, email: str, password: str) -> Optional[Token]:
         user, correct_login = self.user_authenticate(email, password)
         if not correct_login:
@@ -122,7 +160,10 @@ class FirebaseDatabase(DatabaseInterop):
         except:
             return None
 
-    def user_logout(self, cookie: Cookie): pass
+    # def user_logout(self, cookie: Cookie):
+    #     pass
+
+    # Done
     def user_get(self, cookie: Cookie) -> Optional[PrivateUser]:
         try:
             user_record = auth.get_user_by_email(cookie.email)
@@ -195,6 +236,7 @@ class FirebaseDatabase(DatabaseInterop):
             output_groups.append(self.__group_get(group))
         return output_groups
 
+    # Done
     def user_interacted_groups_get(self, cookie: Cookie, search_query: str) -> list[Group]:
         user_data = self.user_collection.document(cookie.uid).get()
         interacted_group_ids = user_data.get(USER_INTERACTED_GROUP_IDS)
@@ -309,6 +351,7 @@ class FirebaseDatabase(DatabaseInterop):
         except:
             return False
 
+    # Done
     def user_wipe_all_messages(self, cookie: Cookie) -> bool:
         try:
             user_data = self.user_collection.document(cookie.uid).get()
@@ -326,6 +369,7 @@ class FirebaseDatabase(DatabaseInterop):
             return False
         return True
 
+    # Done
     def user_wipe_all_group_messages(self, cookie: Cookie, group_id: str) -> bool:
         access = self.__user_has_group_access(cookie.uid, group_id)
         if access == "none":
@@ -347,6 +391,7 @@ class FirebaseDatabase(DatabaseInterop):
         except:
             return False
 
+    # Done
     def user_wipe_all_left_group_messages(self, cookie: Cookie) -> bool:
         try:
             user_data = self.user_collection.document(cookie.uid).get()

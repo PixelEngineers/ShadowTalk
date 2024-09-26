@@ -13,8 +13,8 @@ class DatabaseInterop:
     """User Interaction"""
     """Functions which don't require authentication"""
     """dont show group information here, ig"""
-    def user_public_get(self, email: str) -> Optional[PublicUser]: pass
-    def user_exists(self, email: str) -> bool: pass
+    def user_public_get(self, user_id: str) -> Optional[PublicUser]: pass
+    def user_exists(self, user_id: str) -> bool: pass
     def user_authenticate(self, email: str, password: str) -> bool: pass
     def user_create(
             self,
@@ -23,11 +23,14 @@ class DatabaseInterop:
             password: str,
             profile_picture: Optional[str] = None
     ) -> Optional[Token]: pass
+    def user_verify(self, user_id: str) -> bool: pass
     def user_login(self, email: str, password: str) -> Optional[Token]: pass
-    def user_change_password(self, email: str, new_password: str) -> bool: pass
+    def user_change_password(self, user_id: str, new_password: str) -> bool: pass
 
     """Functions which do require authentication (use cookie)"""
-    def user_logout(self, cookie: Cookie): pass
+    # just destroy the key bro
+    # def user_logout(self, cookie: Cookie): pass
+
     def user_get(self, cookie: Cookie) -> Optional[PrivateUser]: pass
     """User Edit actions"""
     def user_change_username(self, cookie: Cookie, new_user_name: str) -> bool: pass
