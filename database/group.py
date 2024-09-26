@@ -1,102 +1,67 @@
 from uuid import uuid4
 
-from typing import Optional
+GROUP_ID = "id"
+GROUP_NAME = "name"
+GROUP_ADMIN_IDS = "admin_ids"
+GROUP_MEMBER_IDS = "member_ids"
+GROUP_LAST_MESSAGE_ID = "last_message_id"
+GROUP_LAST_MESSAGE_CONTENT = "last_message_content"
+GROUP_LAST_MESSAGE_AUTHOR_NAME = "last_message_author_name"
 
 class Group:
-  id: str
-  name: str
+    id: str
+    name: str
 
-  is_public: bool
-  owner_id: Optional[str]
-
-  admin_ids: list[str]
-  member_ids: list[str]
-  last_message_id: str
-  last_message_content: str
-  last_message_author_name: str
-
-  def __init__(self): pass
-
-  @staticmethod
-  def generate(name):
-    self = Group()
-    self.id = str(uuid4())
-    self.name = name
-    self.is_public = False
-    self.owner_id = None
-    self.admin_ids = []
-    self.member_ids = []
-    self.last_message_id = "0"
-    self.last_message_content = f"\"{name}\" Created"
-    self.last_message_author_name = "system"
-    pass
-
-
-  @staticmethod
-  def from_attr(
-    id: str,
-    name: str,
-    is_public: bool,
-    owner_id: Optional[str],
-    admin_ids: list[str],
-    member_ids: list[str],
-    last_message_id: str,
-    last_message_content: str,
+    admin_ids: list[str]
+    member_ids: list[str]
+    last_message_id: str
+    last_message_content: str
     last_message_author_name: str
-  ):
-    self = Group()
-    self.id = id
-    self.name = name
-    self.is_public = is_public
-    self.owner_id = owner_id
-    self.admin_ids = admin_ids
-    self.member_ids = member_ids
-    self.last_message_id = last_message_id
-    self.last_message_content = last_message_content
-    self.last_message_author_name = last_message_author_name
 
+    def __init__(
+            self,
+            identifier: str,
+            name: str,
+            admin_ids: list[str],
+            member_ids: list[str],
+            last_message_id: str,
+            last_message_content: str,
+            last_message_author_name: str
+    ):
+        self.id = identifier
+        self.name = name
+        self.admin_ids = admin_ids
+        self.member_ids = member_ids
+        self.last_message_id = last_message_id
+        self.last_message_content = last_message_content
+        self.last_message_author_name = last_message_author_name
 
-  def to_obj(self):
-    return {
-      "id": self.id,
-      "name": self.name,
-      "is_public": self.is_public,
-      "owner_id": self.owner_id,
-      "admin_ids": self.admin_ids,
-      "member_ids": self.member_ids,
-      "last_message_id": self.last_message_id,
-      "last_message_content": self.last_message_content,
-      "last_message_author_name": self.last_message_author_name
-    }
+    @staticmethod
+    def generate(name) -> "Group":
+        return Group(
+            str(uuid4()),
+            name,
+            [],
+            [],
+            "0",
+            f"\"{name}\" Created",
+            "system"
+        )
 
-  @staticmethod
-  def get_columns():
-    return [
-      "id",
-      "name",
-      "is_public",
-      "owner_id",
-      "admin_ids",
-      "member_ids",
-      "last_message"
-    ]
+    def to_obj(self):
+        return {
+            GROUP_ID: self.id,
+            GROUP_NAME: self.name,
+            GROUP_ADMIN_IDS: self.admin_ids,
+            GROUP_MEMBER_IDS: self.member_ids,
+            GROUP_LAST_MESSAGE_ID: self.last_message_id,
+            GROUP_LAST_MESSAGE_CONTENT: self.last_message_content,
+            GROUP_LAST_MESSAGE_AUTHOR_NAME: self.last_message_author_name,
+        }
 
-  @staticmethod
-  def private(name: str, creator_ids: list[str]) -> "Group":
-    self = Group(name)
+    @staticmethod
+    def private(name: str, creator_ids: list[str]) -> "Group":
+        self = Group.generate(name)
 
-    self.is_public = False
-    self.owner_id = None
-
-    self.admin_ids = creator_ids
-    return self
-
-  # @staticmethod
-  # def public(name: str, creator_id: str):
-  #   self = Group(name)
-  #
-  #   self.is_public = True
-  #   self.owner_id = creator_id
-  #
-  #   self.admin_ids = []
-  #   return self
+        self.admin_ids = creator_ids
+        return self

@@ -1,5 +1,5 @@
 import google.cloud.firestore
-from firebase_admin.auth import update_user
+from google.cloud.firestore_v1 import DocumentSnapshot
 
 from database.FileDatabase import DatabaseInterop
 from uuid import uuid4
@@ -16,40 +16,40 @@ from firebase_admin._user_mgt import ExportedUserRecord
 from firebase_admin.firestore import client
 from google.cloud.firestore import ArrayUnion, ArrayRemove, CollectionReference
 
-from database.user import PublicUser, PrivateUser
-from database.group import Group
+from database.message import Message, MESSAGE_AUTHOR_ID
+from database.cookie import Cookie
+from database.user import PublicUser, PrivateUser, \
+    USER_GROUP_IDS, \
+    USER_INTERACTED_GROUP_IDS, \
+    USER_PINNED_GROUP_IDS, \
+    USER_REQUESTS
+
+from database.group import Group, \
+    GROUP_ID, \
+    GROUP_NAME, \
+    GROUP_ADMIN_IDS, \
+    GROUP_MEMBER_IDS, \
+    GROUP_LAST_MESSAGE_ID, \
+    GROUP_LAST_MESSAGE_CONTENT, \
+    GROUP_LAST_MESSAGE_AUTHOR_NAME
 
 load_dotenv()
 
 USER_COLLECTION = "user_data"
 GROUP_COLLECTION = "group_data"
-
-USER_GROUP_IDS = "group_ids"
-USER_INTERACTED_GROUP_IDS = "interacted_group_ids"
-USER_PINNED_GROUP_IDS = "pinned_group_ids"
-USER_REQUESTS = "requests"
-
-GROUP_ID = "id"
-GROUP_NAME = "name"
-GROUP_IS_PUBLIC = "is_public"
-GROUP_OWNER_ID = "owner_id"
-GROUP_ADMIN_IDS = "admin_ids"
-GROUP_MEMBER_IDS = "member_ids"
-GROUP_LAST_MESSAGE_ID = "last_message_id"
-GROUP_LAST_MESSAGE_CONTENT = "last_message_content"
-GROUP_LAST_MESSAGE_AUTHOR_NAME = "last_message_author_name"
+def message_path(group_id: str):
+    return f"messages/{group_id}"
 
 config = {
-  "apiKey": env("API_KEY"),
-  "authDomain": env("AUTH_DOMAIN"),
-  "projectId": env("PROJECT_ID"),
-  "storageBucket": env("STORAGE_BUCKET"),
-  "messagingSenderId": env("MESSAGING_SENDER_ID"),
-  "appId": env("APP_ID"),
-  "measurementId": env("MEASUREMENT_ID"),
+    "apiKey": env("API_KEY"),
+    "authDomain": env("AUTH_DOMAIN"),
+    "projectId": env("PROJECT_ID"),
+    "storageBucket": env("STORAGE_BUCKET"),
+    "messagingSenderId": env("MESSAGING_SENDER_ID"),
+    "appId": env("APP_ID"),
+    "measurementId": env("MEASUREMENT_ID"),
 }
 
-Cookie = TypeVar("Cookie")
 ID = TypeVar("ID")
 Token = TypeVar("Token")
 class FirebaseDatabase(DatabaseInterop):
@@ -93,6 +93,7 @@ class FirebaseDatabase(DatabaseInterop):
             try:
                 if not scrypt.hash(password, user.password_salt) == user.password_hash:
                     return None, False
+                return user, True
             except:
                 return None, False
         return None, False
@@ -104,7 +105,7 @@ class FirebaseDatabase(DatabaseInterop):
             display_name: str,
             password: str,
             profile_picture: Optional[str] = None
-    ) -> Token:
+    ) -> Optional[Token]:
         try:
             user = auth.create_user(
                 uid=str(uuid4()),
@@ -149,6 +150,18 @@ class FirebaseDatabase(DatabaseInterop):
             user_record.email,
             user_record.email_verified,
             user_record.photo_url
+        )
+
+    @staticmethod
+    def __group_get(group: DocumentSnapshot) -> Group:
+        return Group(
+            group.get(GROUP_ID),
+            group.get(GROUP_NAME),
+            group.get(GROUP_ADMIN_IDS),
+            group.get(GROUP_MEMBER_IDS),
+            group.get(GROUP_LAST_MESSAGE_ID),
+            group.get(GROUP_LAST_MESSAGE_CONTENT),
+            group.get(GROUP_LAST_MESSAGE_AUTHOR_NAME),
         )
 
     # Done
@@ -196,21 +209,25 @@ class FirebaseDatabase(DatabaseInterop):
             .stream()
         output_groups = []
         for group in groups:
-            output_groups.append(Group.from_attr(
-                group.get(GROUP_ID),
-                group.get(GROUP_NAME),
-                group.get(GROUP_IS_PUBLIC),
-                group.get(GROUP_OWNER_ID),
-                group.get(GROUP_ADMIN_IDS),
-                group.get(GROUP_MEMBER_IDS),
-                group.get(GROUP_LAST_MESSAGE_ID),
-                group.get(GROUP_LAST_MESSAGE_CONTENT),
-                group.get(GROUP_LAST_MESSAGE_AUTHOR_NAME),
-            ))
+            output_groups.append(self.__group_get(group))
+        return output_groups
+
+    def user_interacted_groups_get(self, cookie: Cookie, search_query: str) -> list[Group]:
+        user_data = self.user_collection.document(cookie.uid).get()
+        interacted_group_ids = user_data.get(USER_INTERACTED_GROUP_IDS)
+        groups = self.group_collection \
+            .where(GROUP_ID, 'in', interacted_group_ids) \
+            .stream()
+        output_groups = []
+        for group in groups:
+            output_groups.append(self.__group_get(group))
         return output_groups
 
     # Done
     def user_join_group(self, cookie: Cookie, group_id: str) -> bool:
+        access = self.__user_has_group_access(cookie.uid, group_id)
+        if access != "none":
+            return False
         try:
             self.user_collection.document(cookie.uid).update({
                 USER_GROUP_IDS: ArrayUnion([group_id])
@@ -224,6 +241,10 @@ class FirebaseDatabase(DatabaseInterop):
 
     # Done
     def user_leave_group(self, cookie: Cookie, group_id: str, wipe_messages: bool) -> bool:
+        access = self.__user_has_group_access(cookie.uid, group_id)
+        if access == "none":
+            return False
+
         try:
             self.user_collection.document(cookie.uid).update({
                 USER_GROUP_IDS: ArrayRemove([group_id])
@@ -237,6 +258,10 @@ class FirebaseDatabase(DatabaseInterop):
 
     # Done
     def user_pin_group(self, cookie: Cookie, group_id: str) -> bool:
+        access = self.__user_has_group_access(cookie.uid, group_id)
+        if access == "none":
+            return False
+
         try:
             self.user_collection.document(cookie.uid).update({
                 USER_PINNED_GROUP_IDS: ArrayUnion([group_id])
@@ -247,6 +272,10 @@ class FirebaseDatabase(DatabaseInterop):
 
     # Done
     def user_unpin_group(self, cookie: Cookie, group_id: str) -> bool:
+        access = self.__user_has_group_access(cookie.uid, group_id)
+        if access == "none":
+            return False
+
         try:
             self.user_collection.document(cookie.uid).update({
                 USER_PINNED_GROUP_IDS: ArrayRemove([group_id])
@@ -257,6 +286,10 @@ class FirebaseDatabase(DatabaseInterop):
 
     # Done
     def user_admin_promote_group(self, cookie: Cookie, group_id: str) -> bool:
+        access = self.__user_has_group_access(cookie.uid, group_id)
+        if access == "none":
+            return False
+
         try:
             self.group_collection.document(cookie.uid).update({
                 GROUP_ADMIN_IDS: ArrayUnion([cookie.uid]),
@@ -269,6 +302,10 @@ class FirebaseDatabase(DatabaseInterop):
 
     # Done
     def user_admin_demote_group(self, cookie: Cookie, group_id: str) -> bool:
+        access = self.__user_has_group_access(cookie.uid, group_id)
+        if access == "none":
+            return False
+
         try:
             self.group_collection.document(cookie.uid).update({
                 GROUP_ADMIN_IDS: ArrayRemove([cookie.uid]),
@@ -278,9 +315,69 @@ class FirebaseDatabase(DatabaseInterop):
         except:
             return False
 
-    def user_wipe_all_messages(self, cookie: Cookie) -> bool: pass
-    def user_wipe_all_group_messages(self, cookie: Cookie, group_id: str) -> bool: pass
-    def user_wipe_all_left_group_messages(self, cookie: Cookie) -> bool: pass
+    @staticmethod
+    def __delete_all_group_messages_for_user(user_id: str, group_id) -> bool:
+        try:
+            messages_snapshot = db.reference(message_path(group_id)).get()
+            for message_id, message_data in messages_snapshot.items():
+                if message_data.get(MESSAGE_AUTHOR_ID) == user_id:
+                    db.reference(message_path(group_id) + f"/{message_id}").delete()
+            return True
+        except:
+            return False
+
+    def user_wipe_all_messages(self, cookie: Cookie) -> bool:
+        try:
+            user_data = self.user_collection.document(cookie.uid).get()
+            interacted_group_ids = user_data.get(USER_INTERACTED_GROUP_IDS)
+            group_ids = user_data.get(USER_GROUP_IDS)
+        except:
+            return False
+        for interacted_group_id in interacted_group_ids:
+            self.__delete_all_group_messages_for_user(cookie.uid, interacted_group_id)
+        try:
+            self.user_collection.document(cookie.uid).update({
+                USER_INTERACTED_GROUP_IDS: group_ids
+            })
+        except:
+            return False
+        return True
+
+    def user_wipe_all_group_messages(self, cookie: Cookie, group_id: str) -> bool:
+        access = self.__user_has_group_access(cookie.uid, group_id)
+        if access == "none":
+            return False
+
+        if not self.__delete_all_group_messages_for_user(cookie.uid, group_id):
+            return False
+
+        user_data = self.user_collection.document(cookie.uid).get()
+        if group_id in user_data.get(USER_GROUP_IDS):
+            return True
+
+        # The group from which messages were removed from has been left by the user
+        try:
+            self.user_collection.document(cookie.uid).update({
+                USER_INTERACTED_GROUP_IDS: ArrayRemove([group_id])
+            })
+            return True
+        except:
+            return False
+
+    def user_wipe_all_left_group_messages(self, cookie: Cookie) -> bool:
+        try:
+            user_data = self.user_collection.document(cookie.uid).get()
+        except:
+            return False
+        interacted_group_ids = user_data.get(USER_INTERACTED_GROUP_IDS)
+        group_ids = user_data.get(USER_GROUP_IDS)
+        for interacted_group_id in interacted_group_ids:
+            if interacted_group_id in group_ids:
+                continue
+            self.__delete_all_group_messages_for_user(cookie.uid, interacted_group_id)
+        return True
+
+    # Done
     def message_send(
             self,
             cookie: Cookie,
@@ -289,33 +386,119 @@ class FirebaseDatabase(DatabaseInterop):
             is_reply: bool,
             reply_to_user: Optional[str],
             reply_to_content: Optional[str]
-    ) -> bool: pass
-    def message_get(self, cookie: Cookie, group_id: str, pagination: int = 0, amount: int = 1) -> list[Any]: pass
-    def message_edit(self, cookie: Cookie, group_id: str, message_id: str, new_content: str) -> bool: pass
-    def message_delete(self, cookie: Cookie, group_id: str, message_id: str) -> bool: pass
+    ) -> bool:
+        access = self.__user_has_group_access(cookie.uid, group_id)
+        if access == "none":
+            return False
+        message = Message.generate(
+            cookie.uid,
+            cookie.name,
+            content,
+            access == "admin",
+            is_reply,
+            reply_to_user,
+            reply_to_content
+        )
+        try:
+            db.reference(message_path(group_id) + f"/{message.id}").set(message.to_obj())
+            return True
+        except:
+            return False
+
+    # Done
+    def message_get(self, cookie: Cookie, group_id: str, pagination_last_message_key: Optional[str] = None, amount: int = 1) -> list[Any]:
+        access = self.__user_has_group_access(cookie.uid, group_id)
+        if access == "none":
+            return []
+        ref = db.reference(message_path(group_id))
+        query = ref.order_by_child('index').limit_to_first(amount)
+        query.start_at(pagination_last_message_key)
+        try:
+            snapshot = query.get()
+        except:
+            return []
+        if snapshot is None:
+            return []
+
+        output_messages = []
+        for message_id, message_body in snapshot.items():
+            message = Message.from_snapshot(message_id, message_body)
+            if message is None:
+                continue
+            output_messages.append(message)
+        return output_messages
+
+    # Done
+    def message_edit(self, cookie: Cookie, group_id: str, message_id: str, new_content: str) -> bool:
+        access = self.__user_has_group_access(cookie.uid, group_id)
+        if access == "none":
+            return False
+
+        try:
+            old_message_data = db.reference(message_path(group_id) + f"/{message_id}").get()
+        except:
+            return False
+
+        if old_message_data is None:
+            return False
+        message = Message.from_snapshot(message_id, old_message_data)
+
+        if message.author_id != cookie.uid:
+            return False
+
+        message.content = new_content
+
+        try:
+            db.reference(message_path(group_id) + f"/{message_id}").set(message.to_obj())
+        except:
+            return False
+        return True
+
+    # Done
+    def message_delete(self, cookie: Cookie, group_id: str, message_id: str) -> bool:
+        access = self.__user_has_group_access(cookie.uid, group_id)
+        if access == "none":
+            return False
+        message_ref = db.reference(message_path(group_id) + f"/{message_id}")
+        try:
+            message_data = message_ref.get()
+        except:
+            return False
+
+        message = Message.from_snapshot(message_id, message_data)
+        if message is None:
+            return False
+
+        created_message = message.author_id == cookie.uid
+        is_admin = access == "admin"
+        if not created_message and not is_admin:
+            return False
+        try:
+            message_ref.delete()
+        except:
+            return False
+        return True
+
 
     def __group_create(self, group: Group) -> Optional[Group]:
         try:
-            self.group_collection.document(group.id).set({
-                GROUP_ID: group.id,
-                GROUP_NAME: group.name,
-                GROUP_OWNER_ID: group.owner_id,
-                GROUP_MEMBER_IDS: group.member_ids,
-                GROUP_ADMIN_IDS: group.admin_ids,
-                GROUP_LAST_MESSAGE_ID: group.last_message_id,
-                GROUP_LAST_MESSAGE_AUTHOR_NAME: group.last_message_author_name,
-                GROUP_LAST_MESSAGE_CONTENT: group.last_message_content,
-            })
+            self.group_collection.document(group.id).set(group.to_obj())
             return group
         except:
             return None
 
     def __user_has_group_access(self, uid: str, group_id: str) -> str:
         group_reference = self.group_collection.document(group_id)
-        members_list = group_reference.get(GROUP_MEMBER_IDS)
+        try:
+            members_list = group_reference.get(GROUP_MEMBER_IDS)
+        except:
+            return "none"
         if uid in members_list:
             return "member"
-        admin_list = group_reference.get(GROUP_ADMIN_IDS)
+        try:
+            admin_list = group_reference.get(GROUP_ADMIN_IDS)
+        except:
+            return "none"
         if uid in admin_list:
             return "admin"
         return "none"
@@ -336,26 +519,16 @@ class FirebaseDatabase(DatabaseInterop):
             return False
         try:
             self.group_collection.document(group_id).delete()
-            return True
         except:
             return False
+        return True
 
     # Done
     def group_get(self, cookie: Cookie, group_id: str) -> Optional[Group]:
         if self.__user_has_group_access(cookie.uid, group_id) == "none":
             return None
         group_record = self.group_collection.document(group_id).get()
-        return Group.from_attr(
-            group_id,
-            group_record.get(GROUP_NAME),
-            group_record.get(GROUP_IS_PUBLIC),
-            group_record.get(GROUP_OWNER_ID),
-            group_record.get(GROUP_ADMIN_IDS),
-            group_record.get(GROUP_MEMBER_IDS),
-            group_record.get(GROUP_LAST_MESSAGE_ID),
-            group_record.get(GROUP_LAST_MESSAGE_CONTENT),
-            group_record.get(GROUP_LAST_MESSAGE_AUTHOR_NAME),
-        )
+        return self.__group_get(group_record)
 
     # Done
     def group_rename(self, cookie: Cookie, group_id: str, new_group_name: str) -> bool:
@@ -365,9 +538,9 @@ class FirebaseDatabase(DatabaseInterop):
             self.group_collection.document(group_id).update({
                 GROUP_NAME: new_group_name,
             })
-            return True
         except:
             return False
+        return True
 
     # Done
     def request_send(self, cookie: Cookie, to_id: str) -> bool:
@@ -375,9 +548,10 @@ class FirebaseDatabase(DatabaseInterop):
             self.user_collection.document(to_id).update({
                 USER_REQUESTS: ArrayUnion([cookie.uid])
             })
-            return True
         except:
             return False
+        return True
+
 
     # Done
     def request_exists(self, cookie: Cookie, to_id: str) -> bool:
@@ -385,9 +559,9 @@ class FirebaseDatabase(DatabaseInterop):
             self.user_collection.document(to_id).update({
                 USER_REQUESTS: ArrayUnion([cookie.uid])
             })
-            return True
         except:
             return False
+        return True
 
     # Done
     def request_cancel(self, cookie: Cookie, to_id: str) -> bool:
@@ -395,6 +569,6 @@ class FirebaseDatabase(DatabaseInterop):
             self.user_collection.document(to_id).update({
                 USER_REQUESTS: ArrayRemove([cookie.uid])
             })
-            return True
         except:
             return False
+        return True
