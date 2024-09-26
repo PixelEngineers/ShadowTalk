@@ -1,9 +1,9 @@
-APPLICATION_DOMAIN = "in.shadowtalk"
-
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.hashes import SHA512
 from nacl.signing import SigningKey
 from nacl.public import PrivateKey, PublicKey
+
+APPLICATION_DOMAIN = "in.shadowtalk"
 
 def dh(pk1: bytes, pk2: bytes) -> bytes:
     return HKDF(

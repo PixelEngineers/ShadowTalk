@@ -1,4 +1,3 @@
-import ssl
 from os import getenv
 
 from database.FileDatabase import DatabaseInterop
