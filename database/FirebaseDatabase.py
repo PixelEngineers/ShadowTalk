@@ -3,14 +3,13 @@ from google.cloud.firestore_v1 import DocumentSnapshot
 
 from database.FileDatabase import DatabaseInterop
 from uuid import uuid4
-from dotenv import load_dotenv
-from os import getenv as env
 from typing import Optional, Any, TypeVar
 from datetime import timedelta
+from firebase_config import config, message_path, USER_COLLECTION, GROUP_COLLECTION
 
 import scrypt
 import firebase_admin
-from firebase_admin import auth, db
+from firebase_admin import auth, db, initialize_app, App
 from firebase_admin._auth_utils import UserNotFoundError
 from firebase_admin._user_mgt import ExportedUserRecord
 from firebase_admin.firestore import client
@@ -33,33 +32,17 @@ from database.group import Group, \
     GROUP_LAST_MESSAGE_CONTENT, \
     GROUP_LAST_MESSAGE_AUTHOR_NAME
 
-load_dotenv()
-
-USER_COLLECTION = "user_data"
-GROUP_COLLECTION = "group_data"
-def message_path(group_id: str):
-    return f"messages/{group_id}"
-
-config = {
-    "apiKey": env("API_KEY"),
-    "authDomain": env("AUTH_DOMAIN"),
-    "projectId": env("PROJECT_ID"),
-    "storageBucket": env("STORAGE_BUCKET"),
-    "messagingSenderId": env("MESSAGING_SENDER_ID"),
-    "appId": env("APP_ID"),
-    "measurementId": env("MEASUREMENT_ID"),
-}
 
 ID = TypeVar("ID")
 Token = TypeVar("Token")
 class FirebaseDatabase(DatabaseInterop):
-    firebase: firebase_admin.App
+    firebase: App
     firestore: google.cloud.firestore.Client
     user_collection: CollectionReference
     group_collection: CollectionReference
 
     def __init__(self):
-        self.firebase = firebase_admin.initialize_app(config)
+        self.firebase = initialize_app(config)
         self.firestore = client()
         self.user_collection = self.firestore.collection(USER_COLLECTION)
         self.group_collection = self.firestore.collection(GROUP_COLLECTION)
