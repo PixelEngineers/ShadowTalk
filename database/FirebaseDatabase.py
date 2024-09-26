@@ -9,7 +9,6 @@ from firebase_config import config, message_path, USER_COLLECTION, GROUP_COLLECT
 
 from scrypt import hash as firebase_hash
 from firebase_admin import auth, db, initialize_app, App
-from firebase_admin._auth_utils import UserNotFoundError
 from firebase_admin._user_mgt import ExportedUserRecord
 from firebase_admin.firestore import client
 from google.cloud.firestore import ArrayUnion, ArrayRemove, CollectionReference, Client, DocumentSnapshot
