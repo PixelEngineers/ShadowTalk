@@ -2,6 +2,7 @@ from datetime import timedelta
 
 from django.conf.global_settings import SESSION_COOKIE_NAME
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import UserCreationForm
 from django.shortcuts import render,redirect
 from django.http import HttpResponse
 
@@ -50,9 +51,11 @@ def logout_page(request):
 
 
 def register_page(request):
-    form = request.POST
     if request.method != 'POST':
+        form = UserCreationForm()
         return render(request, 'base/login_register.html', {'form': form})
+
+    form = request.POST
     if not form.is_valid():
         messages.error(request,'An error occurred during registration')
 
