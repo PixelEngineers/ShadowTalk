@@ -1,222 +1,228 @@
-from django.shortcuts import render,redirect
-from django.contrib.auth.models import User
-from django.db.models import Q
-from django.contrib.auth import authenticate , login, logout
-from django.http import HttpResponse
-from .models import Room, Topic, Message
-from .forms import RoomForm,UserForm
-from django.contrib import messages
+from datetime import timedelta
+
+from django.conf.global_settings import SESSION_COOKIE_NAME
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.forms import UserCreationForm
-from database.FileDatabase import FileDatabase
-from os.path import exists
-from os import mkdir
+from django.shortcuts import render,redirect
+from django.http import HttpResponse
 
-def mkdir_if_not_exist(name: str):
-    if exists(name):
-        return
-    mkdir(name)
+from database.FirebaseDatabase import FirebaseDatabase
+from database.Interop import DatabaseInterop
+from .forms import RoomForm, UserForm
+from django.contrib import messages
 
-mkdir_if_not_exist('file_db')
-useDatabase = FileDatabase(
-    "file_db/users.dat",
-    "file_db/groups.dat",
-    "file_db/messages.dat",
-)
+useDatabase: DatabaseInterop = FirebaseDatabase()
 
-# Create your views here.
-
-# rooms=[
-#     {'id':1,'name':'Lets learn python'},
-#     {'id':2,'name':'Design with me'},
-#     {'id':3,'name':'Frontend developers'},
-       
-# ]
-def loginPage(request):
-    page='login' 
-    if request.user.is_authenticated:
+def login_page(request):
+    page = 'login'
+    if request.COOKIES.get(SESSION_COOKIE_NAME) is not None:
         return redirect('home')
-    if request.method== 'POST':
-        username=request.POST.get('username').lower()
-        password=request.POST.get('password')
-        try:
-            user=User.objects.get(username=username)
-        except:
-            messages.error(request, 'User does not exist')
+    if request.method != 'POST':
+        return render(request, 'base/login_register.html', {
+            'page': page
+        })
 
-        user= authenticate(request,username=username,password=password)
-        if user is not None:
-            login(request,user)
-            return redirect('home')
-        else:
-            messages.error(request, 'Userame or password does not exist')
+    form = request.POST
+    email = form.get('email').lower()
+    password = form.get('password')
+    if not useDatabase.user_exists_email(email):
+        messages.error(request, 'User does not exist')
 
-    context={'page':page}
-    return render(request, 'base/login_register.html',context)
+    token = useDatabase.user_login(email, password)
+    if token is None:
+        messages.error(request, 'Login failed')
+
+    response = redirect('home')
+    response.set_cookie(
+        SESSION_COOKIE_NAME,
+        token,
+        expires=timedelta(days=30),
+        httponly=True,
+        secure=True,
+        samesite='Strict',
+    )
+    return response
 
 
 @login_required(login_url='/login')
-def logoutUser(request):
-    logout(request)
+def logout_page(request):
+    request.session.flush()
     return redirect('home')
 
 
-def registerPage(request):
-    page='register'
-    form=UserCreationForm()
-    if request.method=='POST':
-        form=UserCreationForm(request.POST)
-        if form.is_valid():
-            user=form.save(commit=False)
-            user.username=user.username.lower()
-            user.save()
-            login(request,user)
-            return redirect('home')
-        else:
-            messages.error(request,'An error occured during registration')
-    return render(request,'base/login_register.html',{'form':form})
+def register_page(request):
+    form = request.POST
+    if request.method != 'POST':
+        return render(request, 'base/login_register.html', {'form': form})
+    if not form.is_valid():
+        messages.error(request,'An error occurred during registration')
+
+    email = form.get('email').lower()
+    password = form.get('password')
+    name = form.get('username')
+    token = useDatabase.user_create(email, name, password, None)
+    response = redirect('home')
+    response.set_cookie(
+        SESSION_COOKIE_NAME,
+        token,
+        expires=timedelta(days=30),
+        httponly=True,
+        secure=True,
+        samesite='Strict',
+    )
+    return response
 
 @login_required(login_url='/login')
-def home(request):
-    q=request.GET.get('q') if request.GET.get('q') != None else ''
+def home_page(request):
+    """
+    Currently I have turned off message searching, because the UI will also have to be configured different for those
+    """
+    raw_query = request.GET.get('q')
+    query = raw_query if raw_query is not None else ''
      
-    rooms = Room.objects.filter(
-        Q(topic__name__icontains=q)| 
-        Q(name__icontains=q) | 
-        Q(description__icontains=q)|
-        Q(host__message__body__icontains=q)
-    ).distinct()
+    rooms = useDatabase.group_search(request.user, query)
+    room_count = len(rooms)
 
-    room_count=rooms.count() 
-    #refering parent class topic, icontains will if the letter is in the string, return insensituve to case
-    topics=Topic.objects.all()
-
-    room_messages= Message.objects.filter(Q(room__topic__name__icontains=q))
-    context={'rooms':rooms,'topics':topics,'room_count':room_count,'room_messages':room_messages}
-    return render(request,'base/home.html',context)
+    return render(request,'base/home.html', {
+        'rooms':rooms,
+        'room_count':room_count,
+    })
 
 @login_required(login_url='/login')
-def room(request,pk):
-    room=Room.objects.get(id=pk)
-    room_messages=room.message_set.all().order_by('created') #all the set of messages in that room
-    participants=room.participants.all()
-    if request.method=='POST':
-        print(room)
-        print(len(Message.objects.all()))
-
-        message=Message.objects.create(
-            user=request.user,
-            room=room,
-            body=request.POST.get('body')
-        )
-        room.participants.add(request.user)
-        return redirect('room',pk=room.id)
-
-    context={'room':room,'room_messages':room_messages,'participants':participants}
-    return render(request,'base/room.html',context)
-
-def userProfile(request,pk):
-    user=User.objects.get(id=pk) 
-    rooms=user.room_set.all()
-    room_messages=user.message_set.all()
-    topics=Topic.objects.all()
-    context={'user':user,'rooms':rooms,'room_messages':room_messages,'topics':topics}
-    return render(request,'base/profile.html',context)
-
-@login_required(login_url='/login')
-def createRoom(request):
-    form= RoomForm()
-    topics=Topic.objects.all()
-    if request.method == 'POST':
-        topic_name=request.POST.get('topic')
-        topic, created= Topic.objects.get_or_create(name=topic_name)
-
-        Room.objects.create(
-            host=request.user,
-            topic=topic,
-            name=request.POST.get('name'),
-            description=request.POST.get('description'),
-        )
-        # form=RoomForm(request.POST)
-        # if form.is_valid():
-        #     room=form.save(commit=False)
-        #     room.host= request.user
-        #     room.save()
+def room_page(request, pk):
+    if pk is None:
         return redirect('home')
-    context={'form':form,'topics':topics}
-    return render(request,'base/room_form.html',context)
+    room = useDatabase.group_get(request.user, pk)
+    room_messages = useDatabase.message_get(request.user, room.id, None, 64)
+
+    if request.method != 'POST':
+        return render(request, 'base/room.html', {
+            'room': room,
+            'room_messages': room_messages,
+            'participants': room.member_ids
+        })
+
+    _ = useDatabase.message_send(
+        request.user,
+        room.id,
+        request.POST.get('body'),
+        # TODO: replies
+        False,
+        None,
+        None
+    )
+    return redirect('room',pk=room.id)
+
+
+def profile_page(request, pk):
+    if pk is None:
+        if request.user is None:
+            return redirect('404')
+        pk = request.user.uid
+    user = useDatabase.user_public_get(pk)
+    return render(request,'base/profile.html',{
+        'user':user
+    })
 
 @login_required(login_url='/login')
-def updateRoom(request,pk):
-    topics=Topic.objects.all()
-    room=Room.objects.get(id=pk)
-    form= RoomForm(instance=room)
+def room_create_page(request):
+    form = RoomForm()
+    if request.method != 'POST':
+        return render(request, 'base/room_form.html', {
+            'form': form,
+        })
+    useDatabase.group_private_create(request.POST.get('name'), request.user.uid)
+    return redirect('home')
 
-    if request.user != room.host:
+@login_required(login_url='/login')
+def room_update_page(request, pk):
+    if pk is None:
+        return redirect('404')
+    room = useDatabase.group_get(request.user, pk)
+    form = RoomForm(instance=room)
+
+    if request.method != 'POST':
+        return render(request, 'base/room_form.html',{
+            'form': form,
+            'room': room
+        })
+    if request.user.uid not in room.admin_ids:
         return HttpResponse('You are not the admin')
-    if request.method == 'POST':
-        topic_name=request.POST.get('topic')
-        topic, created= Topic.objects.get_or_create(name=topic_name)
-        room.name = request.POST.get('name')
-        room.topic = topic
-        room.description = request.POST.get('description')
-        room.save()
-        # form=RoomForm(request.POST,instance=room)
-        # if form.is_valid():
-        #     form.save()
-        return redirect('home')
-    context={'form':form,'topics':topics,'room':room}
-    return render(request, 'base/room_form.html',context)
+
+    useDatabase.group_rename(request.user, room.id, request.POST.get('name'))
+    return redirect('home')
 
 @login_required(login_url='/login')
-def deleteRoom(request,pk):
-    room=Room.objects.get(id=pk)
-    if request.user != room.host:
+def room_delete_page(request, pk):
+    if pk is None:
+        return redirect('404')
+    if request.method != 'POST':
+        room = useDatabase.group_get(request.user, pk)
+        return render(request, 'base/delete.html', {'obj': room})
+    if useDatabase.user_has_group_access(request.user.uid, pk) != "admin":
         return HttpResponse('You are not the admin')
-    if request.method=='POST':
-        room.delete()
-        return redirect('home')
-    return render(request,'base/delete.html',{'obj':room})
+
+    useDatabase.group_delete(request.user, pk)
+    return redirect('home')
 
 @login_required(login_url='/login')
-def deleteMessage(request,pk):
-    message=Message.objects.get(id=pk)
-    if request.user != message.user:
-        return HttpResponse('You are not the admin')
-    if request.method=='POST':
-        message.delete()
-        return redirect('room',pk=message.room.id)
-    return render(request,'base/delete.html',{'obj':message})
+def message_delete_page(request, gk, pk):
+    if pk is None:
+        return redirect('404')
 
+    if request.method != 'POST':
+        message = useDatabase.message_get_with_id(request.user, gk, pk)
+        return render(request, 'base/delete.html', {
+            'obj': message
+        })
 
-@login_required(login_url='/login')
-def editMessage(request,pk):
-    message=Message.objects.get(id=pk)
-    if request.user != message.user:
-        return HttpResponse('You are not the admin')
-    if request.method=='POST':
-        edited_message=request.POST.get('editedmessage')
-        message.body=edited_message
-        message.save()
+    message = useDatabase.message_get_with_id(request.user.uid, pk, gk)
+    if message.author_id != request.user.uid or useDatabase.user_has_group_access(request.user.uid, gk) != "admin":
+        return HttpResponse('You can not delete this message')
 
-        return redirect('room',pk=message.room.id)
-    return render(request,'base/edit_message.html',{'obj':message})
+    useDatabase.message_delete(request.user, gk, pk)
+    return redirect('room', pk=gk)
 
 
 @login_required(login_url='/login')
-def updateUser(request):
-    user=request.user
-    form=UserForm(instance=user)
+def message_edit_page(request, gk, pk):
+    if pk is None:
+        return redirect('404')
 
-    if request.method == 'POST':
-        form=UserForm(request.POST, instance=user)
-        if form.is_valid():
-            form.save()
-            return redirect('user-profile',pk=user.id)
+    message = useDatabase.message_get_with_id(request.user, gk, pk)
+    if request.method != 'POST':
+        return render(request, 'base/edit_message.html', {'obj': message})
+    if request.user.uid != message.author_id:
+        return HttpResponse('You are not allowed to edit this message')
 
-    return render(request,'base/update-user.html',{'form':form})
+    edited_message=request.POST.get('editedmessage')
+    useDatabase.message_edit(request.user, gk, pk, edited_message)
+
+    return redirect('room',pk=gk)
 
 
+@login_required(login_url='/login')
+def user_update_page(request):
+    user = request.user
+    form = UserForm(instance=user)
 
-def land(request):
+    if request.method != 'POST':
+        return render(request, 'base/update-user.html', {'form': form})
+
+    form = UserForm(request.POST, instance=user)
+    if not form.is_valid():
+        messages.error(request, 'Invalid form inputs')
+
+    email = request.POST.get('email')
+    if email is not None:
+        useDatabase.user_change_email(request.user, email)
+
+    username = request.POST.get('username')
+    if username is not None:
+        useDatabase.user_change_username(request.user, username)
+
+    return redirect('user-profile',pk=user.id)
+
+# TODO: change password??????
+
+def landing_page(request):
     return render(request,'base/landing_page.html')

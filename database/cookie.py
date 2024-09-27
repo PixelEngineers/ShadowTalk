@@ -5,8 +5,16 @@ class Cookie:
     email: str
     name: str
 
-    def __init__(self, token: str):
+    def __init__(self, uid: str, email: str, name: str):
+        self.uid = uid
+        self.email = email
+        self.name = name
+
+    @staticmethod
+    def from_token(token: str):
         decoded = verify_id_token(token)
-        self.uid = decoded['uid']
-        self.email = decoded['email']
-        self.name = decoded['name']
+        return Cookie(
+            decoded['uid'],
+            decoded['email'],
+            decoded['name']
+        )

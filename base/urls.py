@@ -1,21 +1,22 @@
 from django.urls import path
 from . import views
 
-
 urlpatterns=[
-    path('login/',views.loginPage,name='login'),
-    path('logout/',views.logoutUser,name='logout'),
-    path('register/',views.registerPage,name='register'),
-    path('home/',views.home, name='home'),
-    path('room/<str:pk>/', views.room, name='room'),
-    path('profile/<str:pk>/',views.userProfile,name='user-profile'),
-    path('create-room/',views.createRoom,name="create-room"),
-    path('update-room/<str:pk>/',views.updateRoom,name="update-room"),
-    path('delete-room/<str:pk>/',views.deleteRoom,name="delete-room"),
-    path('delete-message/<str:pk>/',views.deleteMessage,name="delete-message"),
-    path('edit-message/<str:pk>/',views.editMessage,name="edit-message"),
-    path('update-user/',views.updateUser,name="update-user"),
-    path('',views.land, name='landing-page'),
+    path('/',views.landing_page, name='landing-page'),
+    path('login/',views.login_page,name='login'),
+    path('logout/',views.logout_page,name='logout'),
+    path('register/',views.register_page,name='register'),
 
+    path('home/',views.home_page, name='home'),
 
+    path('profile/<str:pk>/',views.profile_page,name='user-profile'),
+    path('update-user/', views.user_update_page, name='update-user'),
+
+    path('room/<str:pk>/', views.room_page, name='room'),
+    path('create-room/',views.room_create_page,name='create-room'),
+    path('update-room/<str:pk>/',views.room_update_page,name='update-room'),
+    path('delete-room/<str:pk>/',views.room_delete_page,name='delete-room'),
+
+    path('delete-message/<str:gk>/<str:pk>/',views.message_delete_page,name='delete-message'),
+    path('edit-message/<str:gk>/<str:pk>/',views.message_edit_page,name='edit-message'),
 ]

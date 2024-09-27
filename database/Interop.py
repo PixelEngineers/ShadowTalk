@@ -1,6 +1,7 @@
 from typing import Optional, Any, TypeVar
 
 from database.group import Group
+from database.message import Message
 from database.user import PublicUser, PrivateUser
 from database.cookie import Cookie
 
@@ -15,6 +16,7 @@ class DatabaseInterop:
     """dont show group information here, ig"""
     def user_public_get(self, user_id: str) -> Optional[PublicUser]: pass
     def user_exists(self, user_id: str) -> bool: pass
+    def user_exists_email(self, email: str) -> bool: pass
     def user_authenticate(self, email: str, password: str) -> bool: pass
     def user_create(
             self,
@@ -23,7 +25,7 @@ class DatabaseInterop:
             password: str,
             profile_picture: Optional[str] = None
     ) -> Optional[Token]: pass
-    def user_verify(self, user_id: str) -> bool: pass
+    def user_verify(self, cookie: Cookie) -> bool: pass
     def user_login(self, email: str, password: str) -> Optional[Token]: pass
     def user_change_password(self, user_id: str, new_password: str) -> bool: pass
 
@@ -51,6 +53,7 @@ class DatabaseInterop:
     def user_wipe_all_left_group_messages(self, cookie: Cookie) -> bool: pass
 
     """User message interaction"""
+    def user_has_group_access(self, uid: str, group_id: str) -> str: pass
     def message_send(
             self,
             cookie: Cookie,
@@ -67,6 +70,7 @@ class DatabaseInterop:
             pagination_last_message_key: Optional[str] = None,
             amount: int = 1
     ) -> list[Any]: pass
+    def message_get_with_id(self, cookie: Cookie, group_id: str, message_id: str) -> Message: pass
     def message_edit(self, cookie: Cookie, group_id: str, message_id: str, new_content: str) -> bool: pass
     def message_delete(self, cookie: Cookie, group_id: str, message_id: str) -> bool: pass
 
@@ -76,6 +80,7 @@ class DatabaseInterop:
     # def group_public_create(self, name: str, creator_id: str) -> str: pass
     def group_delete(self, cookie: Cookie, group_id: str) -> bool: pass
     def group_get(self, cookie: Cookie, group_id: str) -> Optional[Group]: pass
+    def group_search(self, cookie: Cookie, search_query: str) -> list[Group]: pass
     def group_rename(self, cookie: Cookie, group_id: str, new_group_name: str) -> bool: pass
 
     """User request Interaction"""

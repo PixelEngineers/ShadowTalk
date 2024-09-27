@@ -68,6 +68,14 @@ class FirebaseDatabase(DatabaseInterop):
             return False
 
     # Done
+    def user_exists_email(self, email: str) -> bool:
+        try:
+            auth.get_user_by_email(email)
+            return True
+        except:
+            return False
+
+    # Done
     def user_authenticate(self, email: str, password: str) -> tuple[Optional[ExportedUserRecord], bool]:
         try:
             users = auth.list_users().users
@@ -108,8 +116,9 @@ class FirebaseDatabase(DatabaseInterop):
                 USER_PINNED_GROUP_IDS: [],
                 USER_REQUESTS: []
             })
+            token = auth.create_custom_token(user.uid)
             return auth.create_session_cookie(
-                user.uid,
+                token,
                 timedelta(days=30)
             )
         except:
@@ -117,8 +126,8 @@ class FirebaseDatabase(DatabaseInterop):
 
     # Done
     # NOTE: THIS FUNCTION TAKES ~4 SECONDS TO RUN
-    def user_verify(self, user_id: str) -> bool:
-        user_record = auth.get_user(user_id)
+    def user_verify(self, cookie: Cookie) -> bool:
+        user_record = auth.get_user(cookie.uid)
         if user_record.email_verified:
             return True
 
@@ -154,6 +163,12 @@ class FirebaseDatabase(DatabaseInterop):
         if not correct_login:
             return None
         try:
+            user = auth.get_user(user.uid)
+            auth.set_custom_user_claims(user.uid, {
+                'uid': user.uid,
+                'email': user.email,
+                'name': user.display_name,
+            })
             return auth.create_session_cookie(user.uid, timedelta(days=30))
         except:
             return None
@@ -404,6 +419,23 @@ class FirebaseDatabase(DatabaseInterop):
         return True
 
     # Done
+    def user_has_group_access(self, uid: str, group_id: str) -> str:
+        group_reference = self.group_collection.document(group_id)
+        try:
+            members_list = group_reference.get(GROUP_MEMBER_IDS)
+        except:
+            return "none"
+        if uid in members_list:
+            return "member"
+        try:
+            admin_list = group_reference.get(GROUP_ADMIN_IDS)
+        except:
+            return "none"
+        if uid in admin_list:
+            return "admin"
+        return "none"
+
+    # Done
     def message_send(
             self,
             cookie: Cookie,
@@ -453,6 +485,13 @@ class FirebaseDatabase(DatabaseInterop):
                 continue
             output_messages.append(message)
         return output_messages
+
+    def message_get_with_id(self, cookie: Cookie, group_id: str, message_id: str) -> Optional[Message]:
+        access = self.__user_has_group_access(cookie.uid, group_id)
+        if access == "none":
+            return None
+        message = db.reference(message_path(group_id) + f"/{message_id}").get()
+        return Message.from_snapshot(message_id, message)
 
     # Done
     def message_edit(self, cookie: Cookie, group_id: str, message_id: str, new_content: str) -> bool:
@@ -513,22 +552,6 @@ class FirebaseDatabase(DatabaseInterop):
         except:
             return None
 
-    def __user_has_group_access(self, uid: str, group_id: str) -> str:
-        group_reference = self.group_collection.document(group_id)
-        try:
-            members_list = group_reference.get(GROUP_MEMBER_IDS)
-        except:
-            return "none"
-        if uid in members_list:
-            return "member"
-        try:
-            admin_list = group_reference.get(GROUP_ADMIN_IDS)
-        except:
-            return "none"
-        if uid in admin_list:
-            return "admin"
-        return "none"
-
     # Done
     def group_private_create(self, name: str, creator_id: str) -> Optional[Group]:
         group = Group.private(name, [creator_id])
@@ -555,6 +578,19 @@ class FirebaseDatabase(DatabaseInterop):
             return None
         group_record = self.group_collection.document(group_id).get()
         return self.__group_get(group_record)
+
+    # Done
+    def group_search(self, cookie: Cookie, search_query: str) -> list[Group]:
+        groups = []
+        try:
+            user_record = self.user_collection.document(cookie.uid).get()
+            group_ids = user_record.get(USER_GROUP_IDS)
+            for group_id in group_ids:
+                group = self.group_collection.document(group_id).get()
+                if search_query in group.get(GROUP_NAME):
+                    groups.append(self.__group_get(group))
+        except:
+            return groups
 
     # Done
     def group_rename(self, cookie: Cookie, group_id: str, new_group_name: str) -> bool:
