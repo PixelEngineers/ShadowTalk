@@ -2,13 +2,12 @@ from datetime import timedelta
 
 from django.conf.global_settings import SESSION_COOKIE_NAME
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.forms import UserCreationForm
 from django.shortcuts import render,redirect
 from django.http import HttpResponse
 
 from database.FirebaseDatabase import FirebaseDatabase
 from database.Interop import DatabaseInterop
-from .forms import RoomForm, UserForm
+from .forms import RoomForm, UserEditForm, EmailUserCreationForm
 from django.contrib import messages
 
 useDatabase: DatabaseInterop = FirebaseDatabase()
@@ -27,10 +26,12 @@ def login_page(request):
     password = form.get('password')
     if not useDatabase.user_exists_email(email):
         messages.error(request, 'User does not exist')
+        return redirect(page)
 
     token = useDatabase.user_login(email, password)
     if token is None:
         messages.error(request, 'Login failed')
+        return redirect(page)
 
     response = redirect('home')
     response.set_cookie(
@@ -51,18 +52,39 @@ def logout_page(request):
 
 
 def register_page(request):
+    page = 'register'
     if request.method != 'POST':
-        form = UserCreationForm()
+        form = EmailUserCreationForm()
         return render(request, 'base/login_register.html', {'form': form})
 
     form = request.POST
-    if not form.is_valid():
-        messages.error(request,'An error occurred during registration')
 
     email = form.get('email').lower()
+    email_validation = useDatabase.is_valid_email(email)
+    if email_validation is not None:
+        messages.error(request, email_validation)
+        return redirect(page)
+
+    if useDatabase.user_exists_email(email):
+        messages.error(request, 'User already exists')
+        return redirect(page)
+
     password = form.get('password')
+    password_validation = useDatabase.is_valid_password(password)
+    if password_validation is not None:
+        messages.error(request, password_validation)
+        return redirect(page)
+
     name = form.get('username')
+    name_validation = useDatabase.is_valid_display_name(name)
+    if name_validation is not None:
+        messages.error(request, name_validation)
+        return redirect(page)
+
     token = useDatabase.user_create(email, name, password, None)
+    if token is None:
+        messages.error(request, 'Failed to create account')
+        return redirect(page)
     response = redirect('home')
     response.set_cookie(
         SESSION_COOKIE_NAME,
@@ -206,12 +228,12 @@ def message_edit_page(request, gk, pk):
 @login_required(login_url='/login')
 def user_update_page(request):
     user = request.user
-    form = UserForm(instance=user)
+    form = UserEditForm(instance=user)
 
     if request.method != 'POST':
         return render(request, 'base/update-user.html', {'form': form})
 
-    form = UserForm(request.POST, instance=user)
+    form = UserEditForm(request.POST, instance=user)
     if not form.is_valid():
         messages.error(request, 'Invalid form inputs')
 

@@ -57,9 +57,10 @@ class PublicUser:
     profile_picture: Optional[str]
 
     @staticmethod
-    def from_user(self, user: User):
-        self.name = user.name
-        self.profile_picture = user.profile_picture
+    def from_user(user: User) -> "PublicUser":
+        name = user.name
+        profile_picture = user.profile_picture
+        return PublicUser(name, profile_picture)
 
     def __init__(self, name: str, profile_picture: Optional[str] = None):
         self.name = name
@@ -76,6 +77,15 @@ class PrivateUser:
         self.profile_picture = profile_picture
         self.email = email
         self.is_verified_email = is_verified_email
+
+    @staticmethod
+    def from_user(user: User) -> "PrivateUser":
+        return PrivateUser(
+            user.name,
+            user.email,
+            user.is_verified_email,
+            user.profile_picture
+        )
 
 
 USER_GROUP_IDS = "group_ids"

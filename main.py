@@ -17,6 +17,8 @@
 # print(fd.users[1].to_obj())
 # fd.deinit()
 
-from database.FirebaseDatabase import FirebaseDatabase
-fb = FirebaseDatabase()
-fb.user_create("ojesh", "sri")
+# from database.FirebaseDatabase import FirebaseDatabase
+# fb = FirebaseDatabase()
+# fb.user_create("ojesh", "sri")
+
+from google.cloud import firestore

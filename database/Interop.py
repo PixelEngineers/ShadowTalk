@@ -29,6 +29,16 @@ class DatabaseInterop:
     def user_login(self, email: str, password: str) -> Optional[Token]: pass
     def user_change_password(self, user_id: str, new_password: str) -> bool: pass
 
+    """Input verification (This is in database interop because different databases might have different restrictions"""
+    @staticmethod
+    def is_valid_email(email: str) -> Optional[str]: pass
+    @staticmethod
+    def is_valid_display_name(display_name: str) -> Optional[str]: pass
+    @staticmethod
+    def is_valid_password(password: str) -> Optional[str]: pass
+    @staticmethod
+    def is_valid_photo_url(photo_url: str) -> Optional[str]: pass
+
     """Functions which do require authentication (use cookie)"""
     # just destroy the key bro
     # def user_logout(self, cookie: Cookie): pass
@@ -69,8 +79,8 @@ class DatabaseInterop:
             group_id: str,
             pagination_last_message_key: Optional[str] = None,
             amount: int = 1
-    ) -> list[Any]: pass
-    def message_get_with_id(self, cookie: Cookie, group_id: str, message_id: str) -> Message: pass
+    ) -> list[Message]: pass
+    def message_get_with_id(self, cookie: Cookie, group_id: str, message_id: str) -> Optional[Message]: pass
     def message_edit(self, cookie: Cookie, group_id: str, message_id: str, new_content: str) -> bool: pass
     def message_delete(self, cookie: Cookie, group_id: str, message_id: str) -> bool: pass
 

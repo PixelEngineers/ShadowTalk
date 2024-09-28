@@ -1,14 +1,18 @@
+from json import dumps
 from os import getenv
+from urllib.parse import urljoin
+
+import requests
 
 from database.FileDatabase import DatabaseInterop
 from uuid import uuid4
 from typing import Optional, Any, TypeVar
 from datetime import timedelta
-from firebase_config import config, message_path, USER_COLLECTION, GROUP_COLLECTION
+from firebase_config import config, message_path, USER_COLLECTION, GROUP_COLLECTION, config_app
 
-from scrypt import hash as firebase_hash
 from firebase_admin import auth, db, initialize_app, App
 from firebase_admin._user_mgt import ExportedUserRecord
+from firebase_admin._auth_utils import validate_email, validate_password, validate_photo_url, validate_display_name
 from firebase_admin.firestore import client
 from google.cloud.firestore import ArrayUnion, ArrayRemove, CollectionReference, Client, DocumentSnapshot
 
@@ -35,6 +39,43 @@ from database.group import Group, \
     GROUP_LAST_MESSAGE_CONTENT, \
     GROUP_LAST_MESSAGE_AUTHOR_NAME
 
+from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
+
+def derive_key(password: str, salt: str):
+    signer_key = getenv('BASE64_SIGNER_KEY')
+    salt_separator = getenv('BASE64_SALT_SEPARATOR')
+    n=2 ** 14
+    r=8
+    p=1
+    length=32
+    """
+    Derive a key using scrypt with a signer key and salt separator.
+
+    :param password: The password to hash
+    :param salt: The salt for the hash
+    :param signer_key: Additional key material
+    :param salt_separator: Separator between salt and signer key
+    :param n: CPU/memory cost parameter
+    :param r: Block size parameter
+    :param p: Parallelization parameter
+    :param length: Length of the derived key
+    :return: The derived key
+    """
+    # Combine salt, separator, and signer key
+    combined_salt = str.encode(salt + salt_separator + signer_key)
+
+    # Create Scrypt instance
+    kdf = Scrypt(
+        salt=combined_salt,
+        length=length,
+        n=n,
+        r=r,
+        p=p,
+    )
+
+    key = kdf.derive(password.encode())
+    return key
+
 
 ID = TypeVar("ID")
 Token = TypeVar("Token")
@@ -55,7 +96,8 @@ class FirebaseDatabase(DatabaseInterop):
     def user_public_get(self, user_id: str) -> Optional[PublicUser]:
         try:
             user_data = auth.get_user(user_id)
-        except:
+        except Exception as e:
+            print(e)
             return None
         return PublicUser(user_data.display_name, user_data.photo_url)
 
@@ -64,7 +106,8 @@ class FirebaseDatabase(DatabaseInterop):
         try:
             _ = auth.get_user(user_id)
             return True
-        except:
+        except Exception as e:
+            print(e)
             return False
 
     # Done
@@ -72,23 +115,47 @@ class FirebaseDatabase(DatabaseInterop):
         try:
             auth.get_user_by_email(email)
             return True
-        except:
+        except Exception as e:
+            print(e)
             return False
 
     # Done
     def user_authenticate(self, email: str, password: str) -> tuple[Optional[ExportedUserRecord], bool]:
+        # endpoint = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWIthPassword"
+        # try:
+        #     response = requests.post(
+        #         endpoint,
+        #         params={
+        #             "key": config_app['apiKey']
+        #         },
+        #         json={
+        #             "email": email,
+        #             "password": password,
+        #             "returnSecureToken": True
+        #         },
+        #         verify=True,
+        #         timeout=10
+        #     )
+        #     response.raise_for_status()
+        #     print(response.json())
+        # except Exception as e:
+        #     print(e)
+
+        user = auth.get_user_by_email(email)
         try:
             users = auth.list_users().users
-        except:
+        except Exception as e:
+            print(e)
             return None, False
         for user in users:
             if not user.email == email:
                 continue
             try:
-                if not firebase_hash(password, user.password_salt) == user.password_hash:
+                if not derive_key(password, user.password_salt) == user.password_hash:
                     return None, False
                 return user, True
-            except:
+            except Exception as e:
+                print(e)
                 return None, False
         return None, False
 
@@ -121,7 +188,8 @@ class FirebaseDatabase(DatabaseInterop):
                 token,
                 timedelta(days=30)
             )
-        except:
+        except Exception as e:
+            print(e)
             return None
 
     # Done
@@ -170,7 +238,8 @@ class FirebaseDatabase(DatabaseInterop):
                 'name': user.display_name,
             })
             return auth.create_session_cookie(user.uid, timedelta(days=30))
-        except:
+        except Exception as e:
+            print(e)
             return None
 
     # def user_logout(self, cookie: Cookie):
@@ -180,7 +249,8 @@ class FirebaseDatabase(DatabaseInterop):
     def user_get(self, cookie: Cookie) -> Optional[PrivateUser]:
         try:
             user_record = auth.get_user_by_email(cookie.email)
-        except:
+        except Exception as e:
+            print(e)
             return None
         return PrivateUser(
             user_record.display_name,
@@ -207,8 +277,40 @@ class FirebaseDatabase(DatabaseInterop):
             user = auth.get_user_by_email(email)
             auth.update_user(user.uid, password=new_password)
             return True
-        except:
+        except Exception as e:
+            print(e)
             return False
+
+    @staticmethod
+    def is_valid_email(email: str) -> Optional[str]:
+        try:
+            validate_email(email)
+        except ValueError as e:
+            return str(e)
+        return None
+    @staticmethod
+    def is_valid_display_name(display_name: str) -> Optional[str]:
+        try:
+            validate_display_name(display_name)
+        except ValueError as e:
+            return str(e)
+        return None
+
+    @staticmethod
+    def is_valid_password(password: str) -> Optional[str]:
+        try:
+            validate_password(password)
+        except ValueError as e:
+            return str(e)
+        return None
+
+    @staticmethod
+    def is_valid_photo_url(photo_url: str) -> Optional[str]:
+        try:
+            validate_photo_url(photo_url)
+        except ValueError as e:
+            return str(e)
+        return None
 
     # Done
     def user_change_username(self, cookie: Cookie, new_user_name: str) -> bool:
@@ -216,7 +318,8 @@ class FirebaseDatabase(DatabaseInterop):
             user = auth.get_user_by_email(cookie.email)
             auth.update_user(user.uid, display_name=new_user_name)
             return True
-        except:
+        except Exception as e:
+            print(e)
             return False
 
     # Done
@@ -225,7 +328,8 @@ class FirebaseDatabase(DatabaseInterop):
             user = auth.get_user_by_email(cookie.email)
             auth.update_user(user.uid, email=new_email, email_verified=False)
             return True
-        except:
+        except Exception as e:
+            print(e)
             return False
 
     # Done
@@ -234,7 +338,8 @@ class FirebaseDatabase(DatabaseInterop):
             user = auth.get_user_by_email(cookie.email)
             auth.update_user(user.uid, photo_url=new_profile_picture)
             return True
-        except:
+        except Exception as e:
+            print(e)
             return False
 
     # Done
@@ -274,12 +379,13 @@ class FirebaseDatabase(DatabaseInterop):
                 GROUP_MEMBER_IDS: ArrayUnion([cookie.uid])
             })
             return True
-        except:
+        except Exception as e:
+            print(e)
             return False
 
     # Done
     def user_leave_group(self, cookie: Cookie, group_id: str, wipe_messages: bool) -> bool:
-        access = self.__user_has_group_access(cookie.uid, group_id)
+        access = self.user_has_group_access(cookie.uid, group_id)
         if access == "none":
             return False
 
@@ -291,12 +397,13 @@ class FirebaseDatabase(DatabaseInterop):
                 GROUP_MEMBER_IDS: ArrayRemove([cookie.uid])
             })
             return True
-        except:
+        except Exception as e:
+            print(e)
             return False
 
     # Done
     def user_pin_group(self, cookie: Cookie, group_id: str) -> bool:
-        access = self.__user_has_group_access(cookie.uid, group_id)
+        access = self.user_has_group_access(cookie.uid, group_id)
         if access == "none":
             return False
 
@@ -305,12 +412,13 @@ class FirebaseDatabase(DatabaseInterop):
                 USER_PINNED_GROUP_IDS: ArrayUnion([group_id])
             })
             return True
-        except:
+        except Exception as e:
+            print(e)
             return False
 
     # Done
     def user_unpin_group(self, cookie: Cookie, group_id: str) -> bool:
-        access = self.__user_has_group_access(cookie.uid, group_id)
+        access = self.user_has_group_access(cookie.uid, group_id)
         if access == "none":
             return False
 
@@ -319,7 +427,8 @@ class FirebaseDatabase(DatabaseInterop):
                 USER_PINNED_GROUP_IDS: ArrayRemove([group_id])
             })
             return True
-        except:
+        except Exception as e:
+            print(e)
             return False
 
     # Done
@@ -334,7 +443,8 @@ class FirebaseDatabase(DatabaseInterop):
                 GROUP_MEMBER_IDS: ArrayRemove([cookie.uid])
             })
             return True
-        except:
+        except Exception as e:
+            print(e)
             return False
 
 
@@ -350,7 +460,8 @@ class FirebaseDatabase(DatabaseInterop):
                 GROUP_MEMBER_IDS: ArrayUnion([cookie.uid])
             })
             return True
-        except:
+        except Exception as e:
+            print(e)
             return False
 
     @staticmethod
@@ -361,7 +472,8 @@ class FirebaseDatabase(DatabaseInterop):
                 if message_data.get(MESSAGE_AUTHOR_ID) == user_id:
                     db.reference(message_path(group_id) + f"/{message_id}").delete()
             return True
-        except:
+        except Exception as e:
+            print(e)
             return False
 
     # Done
@@ -370,7 +482,8 @@ class FirebaseDatabase(DatabaseInterop):
             user_data = self.user_collection.document(cookie.uid).get()
             interacted_group_ids = user_data.get(USER_INTERACTED_GROUP_IDS)
             group_ids = user_data.get(USER_GROUP_IDS)
-        except:
+        except Exception as e:
+            print(e)
             return False
         for interacted_group_id in interacted_group_ids:
             self.__delete_all_group_messages_for_user(cookie.uid, interacted_group_id)
@@ -378,7 +491,8 @@ class FirebaseDatabase(DatabaseInterop):
             self.user_collection.document(cookie.uid).update({
                 USER_INTERACTED_GROUP_IDS: group_ids
             })
-        except:
+        except Exception as e:
+            print(e)
             return False
         return True
 
@@ -401,7 +515,8 @@ class FirebaseDatabase(DatabaseInterop):
                 USER_INTERACTED_GROUP_IDS: ArrayRemove([group_id])
             })
             return True
-        except:
+        except Exception as e:
+            print(e)
             return False
 
     # Done
@@ -423,7 +538,8 @@ class FirebaseDatabase(DatabaseInterop):
         group_reference = self.group_collection.document(group_id)
         try:
             members_list = group_reference.get(GROUP_MEMBER_IDS)
-        except:
+        except Exception as e:
+            print(e)
             return "none"
         if uid in members_list:
             return "member"
@@ -445,7 +561,7 @@ class FirebaseDatabase(DatabaseInterop):
             reply_to_user: Optional[str],
             reply_to_content: Optional[str]
     ) -> bool:
-        access = self.__user_has_group_access(cookie.uid, group_id)
+        access = self.user_has_group_access(cookie.uid, group_id)
         if access == "none":
             return False
         message = Message.generate(
@@ -460,12 +576,13 @@ class FirebaseDatabase(DatabaseInterop):
         try:
             db.reference(message_path(group_id) + f"/{message.id}").set(message.to_obj())
             return True
-        except:
+        except Exception as e:
+            print(e)
             return False
 
     # Done
-    def message_get(self, cookie: Cookie, group_id: str, pagination_last_message_key: Optional[str] = None, amount: int = 1) -> list[Any]:
-        access = self.__user_has_group_access(cookie.uid, group_id)
+    def message_get(self, cookie: Cookie, group_id: str, pagination_last_message_key: Optional[str] = None, amount: int = 1) -> list[Message]:
+        access = self.user_has_group_access(cookie.uid, group_id)
         if access == "none":
             return []
         ref = db.reference(message_path(group_id))
@@ -473,7 +590,8 @@ class FirebaseDatabase(DatabaseInterop):
         query.start_at(pagination_last_message_key)
         try:
             snapshot = query.get()
-        except:
+        except Exception as e:
+            print(e)
             return []
         if snapshot is None:
             return []
@@ -487,7 +605,7 @@ class FirebaseDatabase(DatabaseInterop):
         return output_messages
 
     def message_get_with_id(self, cookie: Cookie, group_id: str, message_id: str) -> Optional[Message]:
-        access = self.__user_has_group_access(cookie.uid, group_id)
+        access = self.user_has_group_access(cookie.uid, group_id)
         if access == "none":
             return None
         message = db.reference(message_path(group_id) + f"/{message_id}").get()
@@ -495,13 +613,14 @@ class FirebaseDatabase(DatabaseInterop):
 
     # Done
     def message_edit(self, cookie: Cookie, group_id: str, message_id: str, new_content: str) -> bool:
-        access = self.__user_has_group_access(cookie.uid, group_id)
+        access = self.user_has_group_access(cookie.uid, group_id)
         if access == "none":
             return False
 
         try:
             old_message_data = db.reference(message_path(group_id) + f"/{message_id}").get()
-        except:
+        except Exception as e:
+            print(e)
             return False
 
         if old_message_data is None:
@@ -515,19 +634,21 @@ class FirebaseDatabase(DatabaseInterop):
 
         try:
             db.reference(message_path(group_id) + f"/{message_id}").set(message.to_obj())
-        except:
+        except Exception as e:
+            print(e)
             return False
         return True
 
     # Done
     def message_delete(self, cookie: Cookie, group_id: str, message_id: str) -> bool:
-        access = self.__user_has_group_access(cookie.uid, group_id)
+        access = self.user_has_group_access(cookie.uid, group_id)
         if access == "none":
             return False
         message_ref = db.reference(message_path(group_id) + f"/{message_id}")
         try:
             message_data = message_ref.get()
-        except:
+        except Exception as e:
+            print(e)
             return False
 
         message = Message.from_snapshot(message_id, message_data)
@@ -540,7 +661,8 @@ class FirebaseDatabase(DatabaseInterop):
             return False
         try:
             message_ref.delete()
-        except:
+        except Exception as e:
+            print(e)
             return False
         return True
 
@@ -549,7 +671,8 @@ class FirebaseDatabase(DatabaseInterop):
         try:
             self.group_collection.document(group.id).set(group.to_obj())
             return group
-        except:
+        except Exception as e:
+            print(e)
             return None
 
     # Done
@@ -564,7 +687,7 @@ class FirebaseDatabase(DatabaseInterop):
 
     # Done
     def group_delete(self, cookie: Cookie, group_id: str) -> bool:
-        if self.__user_has_group_access(cookie.uid, group_id) != "admin":
+        if self.user_has_group_access(cookie.uid, group_id) != "admin":
             return False
         try:
             self.group_collection.document(group_id).delete()
@@ -574,7 +697,7 @@ class FirebaseDatabase(DatabaseInterop):
 
     # Done
     def group_get(self, cookie: Cookie, group_id: str) -> Optional[Group]:
-        if self.__user_has_group_access(cookie.uid, group_id) == "none":
+        if self.user_has_group_access(cookie.uid, group_id) == "none":
             return None
         group_record = self.group_collection.document(group_id).get()
         return self.__group_get(group_record)
@@ -594,7 +717,7 @@ class FirebaseDatabase(DatabaseInterop):
 
     # Done
     def group_rename(self, cookie: Cookie, group_id: str, new_group_name: str) -> bool:
-        if self.__user_has_group_access(cookie.uid, group_id) != "admin":
+        if self.user_has_group_access(cookie.uid, group_id) != "admin":
             return False
         try:
             self.group_collection.document(group_id).update({
