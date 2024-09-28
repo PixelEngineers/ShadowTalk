@@ -65,10 +65,11 @@ a {
 /*========== components ==========*/
 .container {
   max-width: 120rem;
-  width: 90%;
+  width: 100%;
   margin: auto;
   display: flex;
   align-items: center;
+  justify-content: center;
 }
 
 .btn {
@@ -414,8 +415,7 @@ a {
 
 .layout > .container {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+  justify-content: space-around;
 }
 
 .layout--3 > .container > div:first-child {
@@ -642,14 +642,7 @@ a {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2.4rem;
-}
-
-.roomList__header h2 {
-  text-transform: uppercase;
-  font-weight: 500;
-  color: var(--color-light);
-  letter-spacing: 1px;
+  font-size: 2rem;
 }
 
 .roomList__header p {
@@ -887,6 +880,12 @@ a {
   font-size: 2rem;
   color: var(--color-light);
   font-weight: 400;
+}
+.profile__info h4 {
+  font-size: 1.3rem;
+  color: var(--color-gray);
+  font-weight: 400;
+  margin-bottom: 2rem;
 }
 
 .profile__info p {
@@ -1178,7 +1177,82 @@ a {
 
 .participant span {
   display: block;
-  font-weight: 500;
   color: var(--color-main);
-  font-weight: 1.4rem;
+  font-weight: bolder;
+}
+
+.requests {
+  font-size: 2rem;
+  color: var(--color-light);
+  letter-spacing: 1px;
+  background-color: var(--color-dark-light);
+}
+.requests:hover {
+  background-color: var(--color-dark-medium);
+}
+.form__update_group {
+  display: flex;
+  flex-direction: row;
+  gap: 3rem;
+}
+
+.platform-main {
+  display: flex;
+  font-size: 5rem;
+  font-weight: 500;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+}
+
+.platform {
+  background-color: var(--color-main);
+  color: var(--color-dark);
+  padding: 1rem 2rem;
+  border-radius: 1rem;
+}
+
+.no_bitches {
+  text-align: center;
+  font-size: 5rem;
+  font-weight: 500;
+}
+
+.requests {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+.request {
+  display: flex;
+  flex-direction: column;
+}
+.request_user_name {
+
+}
+
+.send_request {
+  margin-top: 5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 4rem;
+}
+.request_id {
+  background-color: var(--color-dark-light);
+  border: none;
+  padding: 1rem 2rem;
+  border-radius: 1rem;
+  font-size: 2rem;
+  width: 50%;
+  text-align: center;
+  margin-left: auto;
+  margin-right: auto;
+}
+.request_button {
+  border: none;
+  background-color: var(--color-main);
+  color: var(--color-main-light);
+  font-size: 3rem;
+  margin-left: auto;
+  margin-right: auto;
 }

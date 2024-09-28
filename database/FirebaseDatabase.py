@@ -195,7 +195,7 @@ class FirebaseDatabase(DatabaseInterop):
     # Done
     # NOTE: THIS FUNCTION TAKES ~4 SECONDS TO RUN
     def user_verify(self, cookie: Cookie) -> bool:
-        user_record = auth.get_user(cookie.uid)
+        user_record = auth.get_user(cookie.id)
         if user_record.email_verified:
             return True
 
@@ -344,7 +344,7 @@ class FirebaseDatabase(DatabaseInterop):
 
     # Done
     def user_groups_get(self, cookie: Cookie, search_query: str) -> list[Group]:
-        user_data = self.user_collection.document(cookie.uid).get()
+        user_data = self.user_collection.document(cookie.id).get()
         group_ids = user_data.get(USER_GROUP_IDS)
         groups = self.group_collection \
             .where(GROUP_ID, 'in', group_ids) \
@@ -356,7 +356,7 @@ class FirebaseDatabase(DatabaseInterop):
 
     # Done
     def user_interacted_groups_get(self, cookie: Cookie, search_query: str) -> list[Group]:
-        user_data = self.user_collection.document(cookie.uid).get()
+        user_data = self.user_collection.document(cookie.id).get()
         interacted_group_ids = user_data.get(USER_INTERACTED_GROUP_IDS)
         groups = self.group_collection \
             .where(GROUP_ID, 'in', interacted_group_ids) \
@@ -368,15 +368,15 @@ class FirebaseDatabase(DatabaseInterop):
 
     # Done
     def user_join_group(self, cookie: Cookie, group_id: str) -> bool:
-        access = self.__user_has_group_access(cookie.uid, group_id)
+        access = self.__user_has_group_access(cookie.id, group_id)
         if access != "none":
             return False
         try:
-            self.user_collection.document(cookie.uid).update({
+            self.user_collection.document(cookie.id).update({
                 USER_GROUP_IDS: ArrayUnion([group_id])
             })
             self.group_collection.document(group_id).update({
-                GROUP_MEMBER_IDS: ArrayUnion([cookie.uid])
+                GROUP_MEMBER_IDS: ArrayUnion([cookie.id])
             })
             return True
         except Exception as e:
@@ -385,16 +385,16 @@ class FirebaseDatabase(DatabaseInterop):
 
     # Done
     def user_leave_group(self, cookie: Cookie, group_id: str, wipe_messages: bool) -> bool:
-        access = self.user_has_group_access(cookie.uid, group_id)
+        access = self.user_has_group_access(cookie.id, group_id)
         if access == "none":
             return False
 
         try:
-            self.user_collection.document(cookie.uid).update({
+            self.user_collection.document(cookie.id).update({
                 USER_GROUP_IDS: ArrayRemove([group_id])
             })
             self.group_collection.document(group_id).update({
-                GROUP_MEMBER_IDS: ArrayRemove([cookie.uid])
+                GROUP_MEMBER_IDS: ArrayRemove([cookie.id])
             })
             return True
         except Exception as e:
@@ -403,12 +403,12 @@ class FirebaseDatabase(DatabaseInterop):
 
     # Done
     def user_pin_group(self, cookie: Cookie, group_id: str) -> bool:
-        access = self.user_has_group_access(cookie.uid, group_id)
+        access = self.user_has_group_access(cookie.id, group_id)
         if access == "none":
             return False
 
         try:
-            self.user_collection.document(cookie.uid).update({
+            self.user_collection.document(cookie.id).update({
                 USER_PINNED_GROUP_IDS: ArrayUnion([group_id])
             })
             return True
@@ -418,12 +418,12 @@ class FirebaseDatabase(DatabaseInterop):
 
     # Done
     def user_unpin_group(self, cookie: Cookie, group_id: str) -> bool:
-        access = self.user_has_group_access(cookie.uid, group_id)
+        access = self.user_has_group_access(cookie.id, group_id)
         if access == "none":
             return False
 
         try:
-            self.user_collection.document(cookie.uid).update({
+            self.user_collection.document(cookie.id).update({
                 USER_PINNED_GROUP_IDS: ArrayRemove([group_id])
             })
             return True
@@ -433,14 +433,14 @@ class FirebaseDatabase(DatabaseInterop):
 
     # Done
     def user_admin_promote_group(self, cookie: Cookie, group_id: str) -> bool:
-        access = self.__user_has_group_access(cookie.uid, group_id)
+        access = self.__user_has_group_access(cookie.id, group_id)
         if access == "none":
             return False
 
         try:
-            self.group_collection.document(cookie.uid).update({
-                GROUP_ADMIN_IDS: ArrayUnion([cookie.uid]),
-                GROUP_MEMBER_IDS: ArrayRemove([cookie.uid])
+            self.group_collection.document(cookie.id).update({
+                GROUP_ADMIN_IDS: ArrayUnion([cookie.id]),
+                GROUP_MEMBER_IDS: ArrayRemove([cookie.id])
             })
             return True
         except Exception as e:
@@ -450,14 +450,14 @@ class FirebaseDatabase(DatabaseInterop):
 
     # Done
     def user_admin_demote_group(self, cookie: Cookie, group_id: str) -> bool:
-        access = self.__user_has_group_access(cookie.uid, group_id)
+        access = self.__user_has_group_access(cookie.id, group_id)
         if access == "none":
             return False
 
         try:
-            self.group_collection.document(cookie.uid).update({
-                GROUP_ADMIN_IDS: ArrayRemove([cookie.uid]),
-                GROUP_MEMBER_IDS: ArrayUnion([cookie.uid])
+            self.group_collection.document(cookie.id).update({
+                GROUP_ADMIN_IDS: ArrayRemove([cookie.id]),
+                GROUP_MEMBER_IDS: ArrayUnion([cookie.id])
             })
             return True
         except Exception as e:
@@ -479,16 +479,16 @@ class FirebaseDatabase(DatabaseInterop):
     # Done
     def user_wipe_all_messages(self, cookie: Cookie) -> bool:
         try:
-            user_data = self.user_collection.document(cookie.uid).get()
+            user_data = self.user_collection.document(cookie.id).get()
             interacted_group_ids = user_data.get(USER_INTERACTED_GROUP_IDS)
             group_ids = user_data.get(USER_GROUP_IDS)
         except Exception as e:
             print(e)
             return False
         for interacted_group_id in interacted_group_ids:
-            self.__delete_all_group_messages_for_user(cookie.uid, interacted_group_id)
+            self.__delete_all_group_messages_for_user(cookie.id, interacted_group_id)
         try:
-            self.user_collection.document(cookie.uid).update({
+            self.user_collection.document(cookie.id).update({
                 USER_INTERACTED_GROUP_IDS: group_ids
             })
         except Exception as e:
@@ -498,20 +498,20 @@ class FirebaseDatabase(DatabaseInterop):
 
     # Done
     def user_wipe_all_group_messages(self, cookie: Cookie, group_id: str) -> bool:
-        access = self.__user_has_group_access(cookie.uid, group_id)
+        access = self.__user_has_group_access(cookie.id, group_id)
         if access == "none":
             return False
 
-        if not self.__delete_all_group_messages_for_user(cookie.uid, group_id):
+        if not self.__delete_all_group_messages_for_user(cookie.id, group_id):
             return False
 
-        user_data = self.user_collection.document(cookie.uid).get()
+        user_data = self.user_collection.document(cookie.id).get()
         if group_id in user_data.get(USER_GROUP_IDS):
             return True
 
         # The group from which messages were removed from has been left by the user
         try:
-            self.user_collection.document(cookie.uid).update({
+            self.user_collection.document(cookie.id).update({
                 USER_INTERACTED_GROUP_IDS: ArrayRemove([group_id])
             })
             return True
@@ -522,7 +522,7 @@ class FirebaseDatabase(DatabaseInterop):
     # Done
     def user_wipe_all_left_group_messages(self, cookie: Cookie) -> bool:
         try:
-            user_data = self.user_collection.document(cookie.uid).get()
+            user_data = self.user_collection.document(cookie.id).get()
         except:
             return False
         interacted_group_ids = user_data.get(USER_INTERACTED_GROUP_IDS)
@@ -530,7 +530,7 @@ class FirebaseDatabase(DatabaseInterop):
         for interacted_group_id in interacted_group_ids:
             if interacted_group_id in group_ids:
                 continue
-            self.__delete_all_group_messages_for_user(cookie.uid, interacted_group_id)
+            self.__delete_all_group_messages_for_user(cookie.id, interacted_group_id)
         return True
 
     # Done
@@ -561,11 +561,11 @@ class FirebaseDatabase(DatabaseInterop):
             reply_to_user: Optional[str],
             reply_to_content: Optional[str]
     ) -> bool:
-        access = self.user_has_group_access(cookie.uid, group_id)
+        access = self.user_has_group_access(cookie.id, group_id)
         if access == "none":
             return False
         message = Message.generate(
-            cookie.uid,
+            cookie.id,
             cookie.name,
             content,
             access == "admin",
@@ -582,7 +582,7 @@ class FirebaseDatabase(DatabaseInterop):
 
     # Done
     def message_get(self, cookie: Cookie, group_id: str, pagination_last_message_key: Optional[str] = None, amount: int = 1) -> list[Message]:
-        access = self.user_has_group_access(cookie.uid, group_id)
+        access = self.user_has_group_access(cookie.id, group_id)
         if access == "none":
             return []
         ref = db.reference(message_path(group_id))
@@ -605,7 +605,7 @@ class FirebaseDatabase(DatabaseInterop):
         return output_messages
 
     def message_get_with_id(self, cookie: Cookie, group_id: str, message_id: str) -> Optional[Message]:
-        access = self.user_has_group_access(cookie.uid, group_id)
+        access = self.user_has_group_access(cookie.id, group_id)
         if access == "none":
             return None
         message = db.reference(message_path(group_id) + f"/{message_id}").get()
@@ -613,7 +613,7 @@ class FirebaseDatabase(DatabaseInterop):
 
     # Done
     def message_edit(self, cookie: Cookie, group_id: str, message_id: str, new_content: str) -> bool:
-        access = self.user_has_group_access(cookie.uid, group_id)
+        access = self.user_has_group_access(cookie.id, group_id)
         if access == "none":
             return False
 
@@ -627,7 +627,7 @@ class FirebaseDatabase(DatabaseInterop):
             return False
         message = Message.from_snapshot(message_id, old_message_data)
 
-        if message.author_id != cookie.uid:
+        if message.author_id != cookie.id:
             return False
 
         message.content = new_content
@@ -641,7 +641,7 @@ class FirebaseDatabase(DatabaseInterop):
 
     # Done
     def message_delete(self, cookie: Cookie, group_id: str, message_id: str) -> bool:
-        access = self.user_has_group_access(cookie.uid, group_id)
+        access = self.user_has_group_access(cookie.id, group_id)
         if access == "none":
             return False
         message_ref = db.reference(message_path(group_id) + f"/{message_id}")
@@ -655,7 +655,7 @@ class FirebaseDatabase(DatabaseInterop):
         if message is None:
             return False
 
-        created_message = message.author_id == cookie.uid
+        created_message = message.author_id == cookie.id
         is_admin = access == "admin"
         if not created_message and not is_admin:
             return False
@@ -687,7 +687,7 @@ class FirebaseDatabase(DatabaseInterop):
 
     # Done
     def group_delete(self, cookie: Cookie, group_id: str) -> bool:
-        if self.user_has_group_access(cookie.uid, group_id) != "admin":
+        if self.user_has_group_access(cookie.id, group_id) != "admin":
             return False
         try:
             self.group_collection.document(group_id).delete()
@@ -697,7 +697,7 @@ class FirebaseDatabase(DatabaseInterop):
 
     # Done
     def group_get(self, cookie: Cookie, group_id: str) -> Optional[Group]:
-        if self.user_has_group_access(cookie.uid, group_id) == "none":
+        if self.user_has_group_access(cookie.id, group_id) == "none":
             return None
         group_record = self.group_collection.document(group_id).get()
         return self.__group_get(group_record)
@@ -706,7 +706,7 @@ class FirebaseDatabase(DatabaseInterop):
     def group_search(self, cookie: Cookie, search_query: str) -> list[Group]:
         groups = []
         try:
-            user_record = self.user_collection.document(cookie.uid).get()
+            user_record = self.user_collection.document(cookie.id).get()
             group_ids = user_record.get(USER_GROUP_IDS)
             for group_id in group_ids:
                 group = self.group_collection.document(group_id).get()
@@ -717,7 +717,7 @@ class FirebaseDatabase(DatabaseInterop):
 
     # Done
     def group_rename(self, cookie: Cookie, group_id: str, new_group_name: str) -> bool:
-        if self.user_has_group_access(cookie.uid, group_id) != "admin":
+        if self.user_has_group_access(cookie.id, group_id) != "admin":
             return False
         try:
             self.group_collection.document(group_id).update({
@@ -731,7 +731,7 @@ class FirebaseDatabase(DatabaseInterop):
     def request_send(self, cookie: Cookie, to_id: str) -> bool:
         try:
             self.user_collection.document(to_id).update({
-                USER_REQUESTS: ArrayUnion([cookie.uid])
+                USER_REQUESTS: ArrayUnion([cookie.id])
             })
         except:
             return False
@@ -742,7 +742,7 @@ class FirebaseDatabase(DatabaseInterop):
     def request_exists(self, cookie: Cookie, to_id: str) -> bool:
         try:
             self.user_collection.document(to_id).update({
-                USER_REQUESTS: ArrayUnion([cookie.uid])
+                USER_REQUESTS: ArrayUnion([cookie.id])
             })
         except:
             return False
@@ -752,7 +752,7 @@ class FirebaseDatabase(DatabaseInterop):
     def request_cancel(self, cookie: Cookie, to_id: str) -> bool:
         try:
             self.user_collection.document(to_id).update({
-                USER_REQUESTS: ArrayRemove([cookie.uid])
+                USER_REQUESTS: ArrayRemove([cookie.id])
             })
         except:
             return False

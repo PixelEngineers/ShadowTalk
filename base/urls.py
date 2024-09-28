@@ -8,9 +8,11 @@ urlpatterns=[
     path('register/',views.register_page,name='register'),
 
     path('home/',views.home_page, name='home'),
+    path('download/', views.download_page, name='download'),
 
     path('profile/<str:pk>/',views.profile_page,name='user-profile'),
     path('update-user/', views.user_update_page, name='update-user'),
+    path('requests/', views.requests_page, name='requests-page'),
 
     path('room/<str:pk>/', views.room_page, name='room'),
     path('create-room/',views.room_create_page,name='create-room'),

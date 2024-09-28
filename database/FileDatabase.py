@@ -1,14 +1,15 @@
+import json
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from os import getenv
 from os.path import exists
 from smtplib import SMTP_SSL
 from ssl import create_default_context
-from typing import Optional, TypeVar, Callable, Any
+from typing import Optional, TypeVar, Callable
 
 from jwt import encode
 
-from cookie import Cookie
+from .cookie import Cookie
 from scrypt import hash
 from bcrypt import gensalt
 import pickle
@@ -106,10 +107,13 @@ class FileDatabase(DatabaseInterop):
         self.users[user.id] = user
         salt = gensalt()
         self.auth[email] = (hash(password, salt), salt.decode())
-        return pickle.dumps(Cookie(user.id, email, display_name)).decode()
+        return json.dumps(Cookie(user.id, email, display_name).to_dict())
+
+    def encode_cookie(self, cookie: Cookie) -> str:
+        return json.dumps(cookie.to_dict())
 
     def user_verify(self, cookie: Cookie) -> bool:
-        user_record = self.users[cookie.uid]
+        user_record = self.users[cookie.id]
         if user_record.is_verified_email:
             return True
 
@@ -145,7 +149,7 @@ class FileDatabase(DatabaseInterop):
         for iter_user in self.users.values():
             if iter_user.email == email:
                 user = iter_user
-        return pickle.dumps(Cookie(user.id, email, password)).decode()
+        return json.dumps(Cookie(user.id, email, user.name).to_dict())
 
     def user_change_password(self, user_id: str, new_password: str) -> bool:
         if self.users.get(user_id) is None:
@@ -184,98 +188,98 @@ class FileDatabase(DatabaseInterop):
         return "Invalid url"
 
     def user_get(self, cookie: Cookie) -> Optional[PrivateUser]:
-        return PrivateUser.from_user(self.users[cookie.uid])
+        return PrivateUser.from_user(self.users[cookie.id])
 
     def user_change_username(self, cookie: Cookie, new_user_name: str) -> bool:
-        if self.users.get(cookie.uid) is None:
+        if self.users.get(cookie.id) is None:
             return False
 
-        self.users[cookie.uid].name = new_user_name
+        self.users[cookie.id].name = new_user_name
         return True
 
     def user_change_email(self, cookie: Cookie, new_email: str) -> bool:
-        if self.users.get(cookie.uid) is None:
+        if self.users.get(cookie.id) is None:
             return False
 
-        old_email = self.users[cookie.uid].email
+        old_email = self.users[cookie.id].email
         self.auth[new_email] = self.auth[old_email]
         del self.auth[old_email]
 
-        self.users[cookie.uid].email = new_email
-        self.users[cookie.uid].is_verified_email = False
+        self.users[cookie.id].email = new_email
+        self.users[cookie.id].is_verified_email = False
         return True
 
     def user_change_profile_picture(self, cookie: Cookie, new_profile_picture: str) -> bool:
-        if self.users.get(cookie.uid) is None:
+        if self.users.get(cookie.id) is None:
             return False
 
-        self.users[cookie.uid].profile_picture = new_profile_picture
+        self.users[cookie.id].profile_picture = new_profile_picture
 
     def user_groups_get(self, cookie: Cookie, search_query: str) -> list[Group]:
         return list(map(
             lambda group_id: self.groups[group_id],
-            self.users[cookie.uid].group_ids
+            self.users[cookie.id].group_ids
         ))
 
     def user_interacted_groups_get(self, cookie: Cookie, search_query: str) -> list[Group]:
         return list(map(
             lambda group_id: self.groups[group_id],
-            self.users[cookie.uid].interacted_group_ids
+            self.users[cookie.id].interacted_group_ids
         ))
 
     def user_join_group(self, cookie: Cookie, group_id: str) -> bool:
-        if self.users.get(cookie.uid) is None:
+        if self.users.get(cookie.id) is None:
             return False
         if self.groups.get(group_id) is None:
             return False
 
-        self.users[cookie.uid].group_ids.append(group_id)
-        self.groups[group_id].member_ids.append(cookie.uid)
+        self.users[cookie.id].group_ids.append(group_id)
+        self.groups[group_id].member_ids.append(cookie.id)
         return True
 
     def user_leave_group(self, cookie: Cookie, group_id: str, wipe_messages: bool) -> bool:
-        if self.user_has_group_access(cookie.uid, group_id) == "none":
+        if self.user_has_group_access(cookie.id, group_id) == "none":
             return False
 
-        self.users[cookie.uid].group_ids.remove(group_id)
+        self.users[cookie.id].group_ids.remove(group_id)
         try:
-            self.groups[group_id].admin_ids.remove(cookie.uid)
+            self.groups[group_id].admin_ids.remove(cookie.id)
         except ValueError:
-            self.groups[group_id].member_ids.remove(cookie.uid)
+            self.groups[group_id].member_ids.remove(cookie.id)
 
         return True
 
     def user_pin_group(self, cookie: Cookie, group_id: str) -> bool:
-        if self.user_has_group_access(cookie.uid, group_id) == "none":
+        if self.user_has_group_access(cookie.id, group_id) == "none":
             return False
-        self.users[cookie.uid].pinned_group_ids.append(group_id)
+        self.users[cookie.id].pinned_group_ids.append(group_id)
         return True
 
     def user_unpin_group(self, cookie: Cookie, group_id: str) -> bool:
-        if self.user_has_group_access(cookie.uid, group_id) == "none":
+        if self.user_has_group_access(cookie.id, group_id) == "none":
             return False
 
-        self.users[cookie.uid].pinned_group_ids.remove(group_id)
+        self.users[cookie.id].pinned_group_ids.remove(group_id)
         return True
 
     def user_admin_promote_group(self, cookie: Cookie, group_id: str) -> bool:
-        if self.user_has_group_access(cookie.uid, group_id) == "none":
+        if self.user_has_group_access(cookie.id, group_id) == "none":
             return False
 
-        self.groups[group_id].admin_ids.append(cookie.uid)
-        self.groups[group_id].member_ids.remove(cookie.uid)
+        self.groups[group_id].admin_ids.append(cookie.id)
+        self.groups[group_id].member_ids.remove(cookie.id)
 
     def user_admin_demote_group(self, cookie: Cookie, group_id: str) -> bool:
-        if self.user_has_group_access(cookie.uid, group_id) == "none":
+        if self.user_has_group_access(cookie.id, group_id) == "none":
             return False
 
-        self.groups[group_id].admin_ids.remove(cookie.uid)
-        self.groups[group_id].member_ids.append(cookie.uid)
+        self.groups[group_id].admin_ids.remove(cookie.id)
+        self.groups[group_id].member_ids.append(cookie.id)
 
     def user_wipe_all_messages(self, cookie: Cookie) -> bool:
-        if self.users.get(cookie.uid) is None:
+        if self.users.get(cookie.id) is None:
             return False
-        for group_id in self.users[cookie.uid].group_ids:
+        for group_id in self.users[cookie.id].group_ids:
             self.user_wipe_all_group_messages(cookie, group_id)
         return True
 
@@ -286,14 +290,14 @@ class FileDatabase(DatabaseInterop):
         self.messages[group_id] = dict(
             (_, message)
             for _, message in self.messages[group_id].items()
-            if message.author_id != cookie.uid
+            if message.author_id != cookie.id
         )
         return True
 
     def user_wipe_all_left_group_messages(self, cookie: Cookie) -> bool:
-        if self.users.get(cookie.uid) is None:
+        if self.users.get(cookie.id) is None:
             return False
-        user = self.users[cookie.uid]
+        user = self.users[cookie.id]
         for interacted_group_id in user.interacted_group_ids:
             if interacted_group_id in user.group_ids:
                 continue
@@ -322,13 +326,13 @@ class FileDatabase(DatabaseInterop):
             reply_to_user: Optional[str],
             reply_to_content: Optional[str]
     ) -> bool:
-        if self.user_has_group_access(cookie.uid, group_id) == "none":
+        if self.user_has_group_access(cookie.id, group_id) == "none":
             return False
         message = Message.generate(
-            cookie.uid,
+            cookie.id,
             cookie.name,
             content,
-            self.user_has_group_access(cookie.uid, group_id) == "admin",
+            self.user_has_group_access(cookie.id, group_id) == "admin",
             is_reply,
             reply_to_user,
             reply_to_content
@@ -346,7 +350,7 @@ class FileDatabase(DatabaseInterop):
             pagination_last_message_key: Optional[str] = None,
             amount: int = 1
     ) -> list[Message]:
-        if self.user_has_group_access(cookie.uid, group_id) != "admin":
+        if self.user_has_group_access(cookie.id, group_id) != "admin":
             return []
         if self.messages.get(group_id) is None:
             return []
@@ -363,7 +367,7 @@ class FileDatabase(DatabaseInterop):
         return messages[max(0, pagination_index - amount): pagination_index]
 
     def message_get_with_id(self, cookie: Cookie, group_id: str, message_id: str) -> Optional[Message]:
-        if self.user_has_group_access(cookie.uid, group_id) == "none":
+        if self.user_has_group_access(cookie.id, group_id) == "none":
             return None
         if self.messages[group_id].get(message_id) is None:
             return None
@@ -371,7 +375,7 @@ class FileDatabase(DatabaseInterop):
         return self.messages[group_id][message_id]
 
     def message_edit(self, cookie: Cookie, group_id: str, message_id: str, new_content: str) -> bool:
-        if self.user_has_group_access(cookie.uid, group_id) == "none":
+        if self.user_has_group_access(cookie.id, group_id) == "none":
             return False
         if self.messages.get(group_id) is None:
             return False
@@ -379,14 +383,14 @@ class FileDatabase(DatabaseInterop):
             return False
 
         message = self.messages[group_id][message_id]
-        if message.author_id != cookie.uid:
+        if message.author_id != cookie.id:
             return False
 
         self.messages[group_id][message_id].content = new_content
         return True
 
     def message_delete(self, cookie: Cookie, group_id: str, message_id: str) -> bool:
-        if self.user_has_group_access(cookie.uid, group_id) == "none":
+        if self.user_has_group_access(cookie.id, group_id) == "none":
             return False
         if self.messages.get(group_id) is None:
             return False
@@ -394,7 +398,7 @@ class FileDatabase(DatabaseInterop):
             return False
 
         message = self.messages[group_id][message_id]
-        if message.author_id != cookie.uid and self.user_has_group_access(cookie.uid, group_id) != "admin":
+        if message.author_id != cookie.id and self.user_has_group_access(cookie.id, group_id) != "admin":
             return False
 
         del self.messages[group_id][message_id]
@@ -425,7 +429,7 @@ class FileDatabase(DatabaseInterop):
         return group
 
     def group_delete(self, cookie: Cookie, group_id: str) -> bool:
-        if self.user_has_group_access(cookie.uid, group_id) != "admin":
+        if self.user_has_group_access(cookie.id, group_id) != "admin":
             return False
         if self.groups.get(group_id) is None or self.messages.get(group_id) is None:
             return False
@@ -443,47 +447,50 @@ class FileDatabase(DatabaseInterop):
         return True
 
     def group_get(self, cookie: Cookie, group_id: str) -> Optional[Group]:
-        if self.user_has_group_access(cookie.uid, group_id) == "none":
+        if self.user_has_group_access(cookie.id, group_id) == "none":
             return None
         if self.groups.get(group_id) is None:
             return None
         return self.groups[group_id]
 
     def group_search(self, cookie: Cookie, search_query: str) -> list[Group]:
-        if self.users.get(cookie.uid) is None:
+        if self.users.get(cookie.id) is None:
             return []
         groups = list(filter(
             lambda group: search_query in group.name,
             map(
             lambda group_id: self.groups[group_id],
-            self.users[cookie.uid].group_ids
+            self.users[cookie.id].group_ids
         )))
         return groups
 
     def group_rename(self, cookie: Cookie, group_id: str, new_group_name: str) -> bool:
-        if self.user_has_group_access(cookie.uid, group_id) != "admin":
+        if self.user_has_group_access(cookie.id, group_id) != "admin":
             return False
         self.groups[group_id].name = new_group_name
 
     def request_send(self, cookie: Cookie, to_id: str) -> bool:
         if self.users.get(to_id) is None:
             return False
-        if self.users.get(cookie.uid) is None:
+        if self.users.get(cookie.id) is None:
             return False
 
-        self.users[to_id].requests.append(cookie.uid)
+        self.users[to_id].requests.append(cookie.id)
+
+    def request_get(self, cookie: Cookie) -> list[str]:
+        return self.users[cookie.id].requests
 
     def request_exists(self, cookie: Cookie, to_id: str) -> bool:
         if self.users.get(to_id) is None:
             return False
-        if self.users.get(cookie.uid) is None:
+        if self.users.get(cookie.id) is None:
             return False
-        return cookie.uid in self.users[to_id].requests
+        return cookie.id in self.users[to_id].requests
 
     def request_cancel(self, cookie: Cookie, to_id: str) -> bool:
         if self.users.get(to_id) is None:
             return False
-        if self.users.get(cookie.uid) is None:
+        if self.users.get(cookie.id) is None:
             return False
 
-        self.users[to_id].requests.remove(cookie.uid)
+        self.users[to_id].requests.remove(cookie.id)

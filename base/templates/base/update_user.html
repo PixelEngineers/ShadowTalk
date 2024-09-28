@@ -18,20 +18,24 @@
         </div>
       </div>
       <div class="layout__body">
-        <form class="form" action="" method="POST" enctype="multipart/form-data">
+        <form class="form_username" action="" method="POST" enctype="multipart/form-data">
           {% csrf_token %}
-
-          {% for field in form %}
           <div class="form__group">
-            <label for="profile_pic">{{field.label}}</label>
-            {{field}}
+            <label for="username">Username</label>
+            <div class="form__update_group">
+              <input type="text" name="username" id="username" value="{{ user.name }}">
+              <button class="btn btn--main" type="submit">Update</button>
+            </div>
           </div>
-          {% endfor %}
-
-
-          <div class="form__action">
-            <a class="btn btn--dark" href="{% url 'user-profile' request.user.id %}">Cancel</a>
-            <button class="btn btn--main" type="submit">Update</button>
+        </form>
+        <form class="form_email" action="" method="POST" enctype="multipart/form-data">
+          {% csrf_token %}
+          <div class="form__group">
+            <label for="email">Email</label>
+            <div class="form__update_group">
+              <input type="text" name="email" id="email" value="{{ user.email }}">
+              <button class="btn btn--main" type="submit">Update</button>
+            </div>
           </div>
         </form>
       </div>

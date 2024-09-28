@@ -25,6 +25,7 @@ class DatabaseInterop:
             password: str,
             profile_picture: Optional[str] = None
     ) -> Optional[Token]: pass
+    def encode_cookie(self, cookie: Cookie) -> str: pass
     def user_verify(self, cookie: Cookie) -> bool: pass
     def user_login(self, email: str, password: str) -> Optional[Token]: pass
     def user_change_password(self, user_id: str, new_password: str) -> bool: pass
@@ -95,5 +96,6 @@ class DatabaseInterop:
 
     """User request Interaction"""
     def request_send(self, cookie: Cookie, to_id: str) -> bool: pass
+    def request_get(self, cookie: Cookie) -> list[str]: pass
     def request_exists(self, cookie: Cookie, to_id: str) -> bool: pass
     def request_cancel(self, cookie: Cookie, to_id: str) -> bool: pass

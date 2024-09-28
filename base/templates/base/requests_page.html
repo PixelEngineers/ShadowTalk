@@ -1,0 +1,24 @@
+{% extends 'main.html' %}
+
+{% block content %}
+<form class="send_request" method="post">
+    {% csrf_token %}
+    <input class="request_id" id="request_id" placeholder="{{ request.user.id }}">
+    <button class="request_button btn" type="submit">Send Request</button>
+</form>
+
+</form>
+<div class="send_request"></div>
+{% if no_requests %}
+<div class="no_bitches">You have no requests</div>
+{% else %}
+<div class="requests">
+    {% for request in requests %}
+    <div class="request">
+        <img src="{{ request.profile_picture }}" alt="{{ request.name }}"/>
+        <div class="request_user_name">{{ request.name }}</div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

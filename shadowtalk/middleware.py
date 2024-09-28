@@ -1,3 +1,6 @@
+import json
+import pickle
+
 from django.conf.global_settings import SESSION_COOKIE_NAME
 from django.utils.deprecation import MiddlewareMixin
 from firebase_admin import auth
@@ -23,6 +26,24 @@ class FirebaseAuthMiddleware(MiddlewareMixin):
                 decoded_claims['email'],
                 decoded_claims['name']
             )
+            request.user.is_authenticated = True
+        except auth.InvalidIdTokenError:
+            request.user = Blank()
+            request.user.is_authenticated = False
+        return None
+
+class FileAuthMiddleware(MiddlewareMixin):
+    def process_request(self, request):
+        session_cookie = request.COOKIES.get(SESSION_COOKIE_NAME)
+
+        # Hack around
+        if str(session_cookie) == "None":
+            request.user = Blank()
+            request.user.is_authenticated = False
+            return None
+
+        try:
+            request.user = Cookie.from_dict(json.loads(session_cookie))
             request.user.is_authenticated = True
         except auth.InvalidIdTokenError:
             request.user = Blank()

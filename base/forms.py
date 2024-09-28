@@ -22,3 +22,6 @@ class EmailUserCreationForm(UserCreationForm):
     class Meta:
         model = User
         fields = ['email', 'username']
+
+class RequestForm(forms.Form):
+    request_id = forms.CharField(required=True)
